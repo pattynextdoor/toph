@@ -16,6 +16,32 @@ export const metadata: Metadata = {
   title: "toph — btop for AI agents",
   description:
     "A terminal dashboard for AI coding agents. See what your agents are doing. Real-time activity feed, token tracking, cost estimation. Zero config.",
+  keywords: [
+    "terminal",
+    "dashboard",
+    "AI",
+    "coding agents",
+    "Claude Code",
+    "btop",
+    "TUI",
+    "Go",
+    "Bubble Tea",
+  ],
+  authors: [{ name: "pattynextdoor" }],
+  openGraph: {
+    title: "toph — btop for AI agents",
+    description:
+      "A terminal dashboard for AI coding agents. See what your agents are doing.",
+    type: "website",
+    url: "https://toph.dev",
+    images: [{ url: "/og.png", width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "toph — btop for AI agents",
+    description: "A terminal dashboard for AI coding agents.",
+    images: ["/og.png"],
+  },
 };
 
 export default function RootLayout({
