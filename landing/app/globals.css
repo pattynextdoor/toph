@@ -138,6 +138,17 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+:root {
+  --terminal-active: #87D787;
+  --terminal-waiting: #FFD787;
+  --terminal-tool: #87D7D7;
+  --terminal-error: #FF8787;
+  --terminal-idle: #6C6C6C;
+  --terminal-subagent: #D7AFFF;
+  --terminal-border: #87AFFF;
+  --surface-darker: #0d0d10;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -147,5 +158,20 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+@keyframes pulse-amber {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.animate-pulse-amber {
+  animation: pulse-amber 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-amber {
+    animation: none;
   }
 }
