@@ -2,17 +2,20 @@
 
 import { InstallCommand } from "@/components/install-command";
 import { TophDemo } from "@/components/toph-demo";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { AnimatedGridPattern } from "@/components/ui/animated-grid-pattern";
 import { BorderBeam } from "@/components/ui/border-beam";
 import { ShimmerButton } from "@/components/ui/shimmer-button";
 
 export function Hero() {
+  const reducedMotion = useReducedMotion();
+
   return (
     <section className="min-h-screen grid lg:grid-cols-[38fr_62fr]">
       {/* Left Column */}
-      <div className="relative flex flex-col justify-center px-12 py-20 text-center lg:text-left">
+      <div className="relative flex flex-col justify-center px-6 lg:px-12 py-20 text-center lg:text-left">
         {/* Nav */}
-        <nav className="absolute top-8 left-12 right-12 flex flex-row justify-between items-center">
+        <nav className="absolute top-8 left-6 right-6 lg:left-12 lg:right-12 flex flex-row justify-between items-center">
           <span className="font-mono text-sm text-zinc-500">toph</span>
           <ShimmerButton
             background="rgba(255,255,255,0.03)"
@@ -44,7 +47,7 @@ export function Hero() {
         </p>
 
         {/* Install Command */}
-        <div className="mt-10">
+        <div className="mt-10 overflow-hidden">
           <InstallCommand />
         </div>
 
@@ -57,16 +60,21 @@ export function Hero() {
       {/* Right Column */}
       <div className="relative flex items-center justify-center overflow-hidden border-l border-white/[0.04] bg-[#0d0d10] p-8 lg:p-12 min-h-[400px]">
         {/* Animated grid background */}
-        <AnimatedGridPattern
-          numSquares={30}
-          maxOpacity={0.15}
-          duration={3}
-          repeatDelay={1}
-          className="inset-0 h-full w-full opacity-35"
-        />
+        {!reducedMotion && (
+          <AnimatedGridPattern
+            numSquares={30}
+            maxOpacity={0.15}
+            duration={3}
+            repeatDelay={1}
+            className="inset-0 h-full w-full opacity-35"
+          />
+        )}
 
         {/* Terminal mockup */}
-        <div className="relative z-10 w-full max-w-[900px] overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">
+        <div
+          className="relative z-10 w-full max-w-[900px] overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950"
+          aria-label="toph terminal dashboard showing session monitoring"
+        >
           {/* Title bar */}
           <div className="flex items-center gap-2 border-b border-zinc-800 px-4 py-3">
             <div className="h-3 w-3 rounded-full bg-red-500/70" />
@@ -79,12 +87,14 @@ export function Hero() {
           <TophDemo />
 
           {/* BorderBeam glow */}
-          <BorderBeam
-            duration={4}
-            colorFrom="#87AFFF"
-            colorTo="#87AFFF"
-            size={300}
-          />
+          {!reducedMotion && (
+            <BorderBeam
+              duration={4}
+              colorFrom="#87AFFF"
+              colorTo="#87AFFF"
+              size={300}
+            />
+          )}
         </div>
       </div>
     </section>

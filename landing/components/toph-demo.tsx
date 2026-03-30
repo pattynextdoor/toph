@@ -126,7 +126,7 @@ export function TophDemo() {
   return (
     <div className="bg-zinc-950 font-mono text-[12px] text-zinc-300 w-full">
       {/* Top row */}
-      <div className="grid grid-cols-[22fr_36fr_42fr] border-b border-zinc-800">
+      <div className="grid grid-cols-[40fr_60fr] md:grid-cols-[22fr_36fr_42fr] border-b border-zinc-800">
         {/* Panel 1 — Sessions */}
         <div className="p-3 border-r border-zinc-800">
           {panelLabel("Sessions")}
@@ -146,7 +146,7 @@ export function TophDemo() {
         </div>
 
         {/* Panel 2 — Detail */}
-        <div className="p-3 border-r border-zinc-800">
+        <div className="hidden md:block p-3 border-r border-zinc-800">
           {panelLabel("Detail")}
           <div className="space-y-1">
             <div>
@@ -227,7 +227,7 @@ export function TophDemo() {
       </div>
 
       {/* Bottom row */}
-      <div className="grid grid-cols-2">
+      <div className="hidden md:grid grid-cols-2">
         {/* Panel 4 — Metrics */}
         <div className="p-3 border-r border-zinc-800">
           {panelLabel("Metrics")}
