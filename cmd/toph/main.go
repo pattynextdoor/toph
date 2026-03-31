@@ -8,7 +8,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/pattynextdoor/toph/internal/config"
@@ -108,14 +107,6 @@ func main() {
 	}()
 	slog.Debug("hooks server port", "port", hookSource.Port())
 
-	// Start process scanner (30s interval) for supplementary session detection
-	processSource := source.NewProcessSource(30 * time.Second)
-	go func() {
-		if err := processSource.Start(ctx, eventCh); err != nil {
-			slog.Error("process source error", "err", err)
-		}
-	}()
-
 	m := model.New(manager)
 	p := tea.NewProgram(m)
 
@@ -142,5 +133,4 @@ func main() {
 	cancel()
 	jsonlSource.Stop()
 	hookSource.Stop()
-	processSource.Stop()
 }
