@@ -1,36 +1,47 @@
 const features = [
   {
+    label: "01",
     title: "Zero config",
     description:
-      "Just run it. toph finds your Claude Code sessions automatically.",
+      "Point it at your terminal. toph auto-discovers Claude Code sessions from ~/.claude/projects/ — no setup, no config files, no environment variables. Just run it.",
   },
   {
+    label: "02",
     title: "Live",
     description:
-      "Real-time activity feed, token tracking, cost estimation. 30fps.",
+      "Activity feed updates every 2.5 seconds. Token counts tick up in real-time. Context fill meters animate as your agent thinks. 30fps rendering via Bubble Tea.",
   },
   {
+    label: "03",
     title: "Beautiful",
     description:
-      "Screenshot-worthy on first launch. Dark theme, smooth animations.",
+      "Screenshot-worthy on first launch. Dark theme with color-coded panels, braille sparklines, and spring-animated meters. Built for the terminal, designed for r/unixporn.",
   },
 ];
 
 export function Features() {
   return (
-    <div className="max-w-[960px] mx-auto mt-20 px-6 lg:px-0">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-px bg-zinc-800">
-        {features.map((feature) => (
-          <div key={feature.title} className="bg-zinc-950 px-9 py-10">
-            <h3 className="text-[22px] font-semibold text-zinc-50">
-              {feature.title}
-            </h3>
-            <p className="mt-4 text-[15px] leading-relaxed text-zinc-600">
-              {feature.description}
-            </p>
-          </div>
-        ))}
+    <section className="px-6 lg:px-16 py-24">
+      <div className="max-w-5xl mx-auto">
+        <h2 className="font-sans text-3xl font-semibold text-zinc-50 text-center mb-16">
+          What toph senses
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {features.map((feature) => (
+            <div key={feature.label}>
+              <span className="font-mono text-sm text-zinc-600">
+                {feature.label}
+              </span>
+              <h3 className="text-xl font-semibold text-zinc-50 mt-2">
+                {feature.title}
+              </h3>
+              <p className="text-sm text-zinc-400 leading-relaxed mt-3">
+                {feature.description}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+    </section>
   );
 }

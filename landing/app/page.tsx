@@ -1,24 +1,26 @@
 import { Hero } from "@/components/hero";
 import { Positioning } from "@/components/positioning";
 import { Features } from "@/components/features";
+import { DataExplainer } from "@/components/data-explainer";
+import { HowItWorks } from "@/components/how-it-works";
+import { Stats } from "@/components/stats";
+import { OpenSource } from "@/components/open-source";
 import { Footer } from "@/components/footer";
 import { FadeInOnScroll } from "@/components/fade-in-on-scroll";
 
 export default function Home() {
   return (
     <main>
-      {/* Viewport 1: Split-screen hero */}
       <Hero />
-
-      {/* Viewport 2: Centered features + footer */}
-      <section className="relative min-h-screen flex flex-col">
-        <FadeInOnScroll>
-          <Positioning />
-          <Features />
-        </FadeInOnScroll>
-        <div className="flex-1" />
-        <Footer />
-      </section>
+      <FadeInOnScroll>
+        <Positioning />
+      </FadeInOnScroll>
+      <Features />
+      <DataExplainer />
+      <HowItWorks />
+      <Stats />
+      <OpenSource />
+      <Footer />
     </main>
   );
 }
