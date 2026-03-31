@@ -15,6 +15,15 @@ const (
 	DefaultActiveThreshold = 5 * time.Minute
 )
 
+// MetricsHistorySize is the number of time-series samples kept for the
+// burn rate chart. At one sample per 10 seconds, 30 samples = 5 minutes.
+const MetricsHistorySize = 30
+
+// MetricsSample is one point in the burn rate time series.
+type MetricsSample struct {
+	OutputTokens int // delta of output tokens in this sample period
+}
+
 // Manager owns all session state and the global activity feed.
 // It is the central data store that the Bubble Tea model reads from.
 type Manager struct {
@@ -23,6 +32,11 @@ type Manager struct {
 	feed          *RingBuffer
 	conflicts     *ConflictTracker
 	sampleCounter int
+
+	// Global time series for burn rate chart
+	metricsHistory    [MetricsHistorySize]MetricsSample
+	metricsHistoryIdx int
+	lastTotalOutput   int
 }
 
 // NewManager creates a Manager with an empty session map and a 1,000-event ring buffer.
@@ -180,7 +194,8 @@ func (m *Manager) CheckSessionStates() []SessionWaitingInfo {
 	return waiting
 }
 
-// SampleTokenRates samples token burn rates for all sessions' sparklines.
+// SampleTokenRates samples token burn rates for all sessions' sparklines
+// and the global metrics time series.
 // Call every tick; internally it only fires every ~300 ticks (10s at 30fps).
 func (m *Manager) SampleTokenRates() {
 	m.sampleCounter++
@@ -189,11 +204,52 @@ func (m *Manager) SampleTokenRates() {
 	}
 	m.sampleCounter = 0
 
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Per-session sparklines
+	var totalOutput int
 	for _, s := range m.sessions {
 		s.SampleTokenRate()
+		s.mu.RLock()
+		totalOutput += s.TotalOutputTokens
+		s.mu.RUnlock()
 	}
+
+	// Global burn rate time series
+	delta := totalOutput - m.lastTotalOutput
+	if delta < 0 {
+		delta = 0
+	}
+	m.metricsHistory[m.metricsHistoryIdx] = MetricsSample{OutputTokens: delta}
+	m.metricsHistoryIdx = (m.metricsHistoryIdx + 1) % MetricsHistorySize
+	m.lastTotalOutput = totalOutput
+}
+
+// GetBurnRateHistory returns the global burn rate time series in chronological
+// order (oldest first). Each value is output tokens per 10-second sample.
+func (m *Manager) GetBurnRateHistory() [MetricsHistorySize]int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var result [MetricsHistorySize]int
+	for i := 0; i < MetricsHistorySize; i++ {
+		idx := (m.metricsHistoryIdx + i) % MetricsHistorySize
+		result[i] = m.metricsHistory[idx].OutputTokens
+	}
+	return result
+}
+
+// CurrentBurnRate returns the average output tokens per second over the
+// last 3 samples (30 seconds).
+func (m *Manager) CurrentBurnRate() float64 {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var total int
+	for i := 1; i <= 3; i++ {
+		idx := (m.metricsHistoryIdx - i + MetricsHistorySize) % MetricsHistorySize
+		total += m.metricsHistory[idx].OutputTokens
+	}
+	return float64(total) / 30.0 // 3 samples * 10s each
 }
 
 // SetSubagentMeta attaches metadata (type and description) from a .meta.json

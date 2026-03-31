@@ -248,7 +248,9 @@ func (m Model) View() tea.View {
 	selectedSession := m.sessions.SelectedSession(displaySessions)
 	detailView := m.detail.Render(selectedSession, l.LeftWidth, l.DetailHeight)
 	activityView := m.activity.Render(displayEvents, l.RightWidth, l.ActivityHeight)
-	metricsView := m.metrics.Render(activeSessions, l.RightWidth, l.MetricsHeight)
+	burnRate := m.manager.CurrentBurnRate()
+	burnHistory := m.manager.GetBurnRateHistory()
+	metricsView := m.metrics.Render(activeSessions, burnRate, burnHistory, l.RightWidth, l.MetricsHeight)
 	toolsView := m.tools.Render(toolCounts, l.LeftWidth, l.ToolsHeight)
 
 	// Compose columns: left (sessions/detail/tools), right (activity/metrics).

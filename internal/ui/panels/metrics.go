@@ -37,17 +37,18 @@ var pricing = map[string]modelPricing{
 	"claude-haiku-4-5":  {0.80, 0.08, 1.00, 4.0},
 }
 
-var defaultPricing = modelPricing{3.0, 0.30, 3.75, 15.0} // sonnet as default
+var defaultPricing = modelPricing{3.0, 0.30, 3.75, 15.0}
 
 // Render draws the metrics panel using aggregated session data.
-func (p *MetricsPanel) Render(sessions []*data.Session, width, height int) string {
+func (p *MetricsPanel) Render(sessions []*data.Session, burnRate float64, burnHistory [data.MetricsHistorySize]int, width, height int) string {
 	style := p.theme.PanelNormal
 	if p.focused {
 		style = p.theme.PanelFocus
 	}
 
+	innerW := width - 4
 	innerH := height - 2
-	if innerH < 1 {
+	if innerH < 1 || innerW < 1 {
 		return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render("")
 	}
 
@@ -77,25 +78,59 @@ func (p *MetricsPanel) Render(sessions []*data.Session, width, height int) strin
 		s.RUnlock()
 	}
 
-	// Tokens
-	lines = append(lines, fmt.Sprintf("%s in  %s out",
+	// Row 1: tokens in/out + burn rate
+	burnStr := ""
+	if burnRate > 0 {
+		burnStr = fmt.Sprintf("  %s", lipgloss.NewStyle().Foreground(p.theme.Subagent).Render(fmt.Sprintf("%.0f tok/s", burnRate)))
+	}
+	lines = append(lines, fmt.Sprintf("%s in  %s out%s",
 		lipgloss.NewStyle().Foreground(p.theme.Active).Render(formatTokens(totalIn)),
-		lipgloss.NewStyle().Foreground(p.theme.Waiting).Render(formatTokens(totalOut))))
+		lipgloss.NewStyle().Foreground(p.theme.Waiting).Render(formatTokens(totalOut)),
+		burnStr))
 
-	if totalCacheRead > 0 {
-		lines = append(lines, dimStyle.Render(fmt.Sprintf("%s cached", formatTokens(totalCacheRead))))
+	// Row 2: cache ratio
+	if totalIn > 0 && totalCacheRead > 0 {
+		cacheRatio := float64(totalCacheRead) / float64(totalIn+totalCacheRead) * 100
+		lines = append(lines, dimStyle.Render(fmt.Sprintf("cache %s", formatTokens(totalCacheRead)))+
+			lipgloss.NewStyle().Foreground(p.theme.Active).Render(fmt.Sprintf(" %.0f%% hit", cacheRatio)))
 	}
 
-	// Cost estimate
+	// Row 3: cost + cost rate + sessions
 	cost := estimateCost(model, totalIn, totalOut, totalCacheRead, totalCacheWrite)
 	prefix := ""
 	if _, ok := pricing[model]; !ok {
 		prefix = "~"
 	}
-	lines = append(lines, fmt.Sprintf("cost %s%s  %s",
+	costLine := fmt.Sprintf("cost %s%s",
 		dimStyle.Render(prefix),
-		lipgloss.NewStyle().Foreground(p.theme.Active).Render(fmt.Sprintf("$%.2f", cost)),
-		dimStyle.Render(fmt.Sprintf("%d session(s)", len(sessions)))))
+		lipgloss.NewStyle().Foreground(p.theme.Active).Render(fmt.Sprintf("$%.2f", cost)))
+	// Cost rate: extrapolate from burn rate to $/hr using output pricing
+	if burnRate > 0 {
+		pr, ok := pricing[model]
+		if !ok {
+			pr = defaultPricing
+		}
+		costPerSec := burnRate * pr.Output / 1_000_000
+		costPerHr := costPerSec * 3600
+		costLine += dimStyle.Render(fmt.Sprintf("  $%.0f/hr", costPerHr))
+	}
+	lines = append(lines, costLine)
+
+	// Burn rate chart — use remaining vertical space
+	chartHeight := innerH - len(lines)
+	if chartHeight >= 1 {
+		// Convert history array to slice
+		histSlice := make([]int, data.MetricsHistorySize)
+		for i, v := range burnHistory {
+			histSlice[i] = v
+		}
+		chartWidth := innerW
+		chart := renderBrailleChart(histSlice, chartWidth, p.theme.Active)
+		if chart != "" {
+			lines = append(lines, dimStyle.Render("tok/s")+" "+dimStyle.Render("5m"))
+			lines = append(lines, chart)
+		}
+	}
 
 	if len(lines) > innerH {
 		lines = lines[:innerH]
@@ -110,7 +145,6 @@ func estimateCost(model string, input, output, cacheRead, cacheWrite int) float6
 		p = defaultPricing
 	}
 
-	// Non-cached input = total input - cache read
 	nonCachedInput := input - cacheRead
 	if nonCachedInput < 0 {
 		nonCachedInput = 0
