@@ -51,8 +51,8 @@ func renderChart(values []int, width, height int, col, dimCol color.Color) strin
 		}
 	}
 
-	barStyle := lipgloss.NewStyle().Foreground(col)
-	emptyStyle := lipgloss.NewStyle().Foreground(dimCol)
+	barStyle := lipgloss.NewStyle().Foreground(col).Width(width)
+	emptyStyle := lipgloss.NewStyle().Foreground(dimCol).Width(width)
 
 	// Render row by row, top to bottom
 	var rows []string
@@ -76,9 +76,6 @@ func renderChart(values []int, width, height int, col, dimCol color.Color) strin
 		}
 
 		line := b.String()
-		// Style: filled chars get the main color, but we render the whole
-		// line at once. Use the bar color for non-space chars.
-		// Simple approach: render the full line in bar color — spaces are invisible anyway.
 		hasContent := false
 		for _, r := range line {
 			if r != ' ' {

@@ -161,7 +161,7 @@ func (p *MetricsPanel) Render(sessions []*data.Session, burnRate float64, burnHi
 				gap = 1
 			}
 			lines = append(lines, fmt.Sprintf("%s%*s%s", labelLeft, gap, "", labelRight))
-			lines = append(lines, chart)
+			lines = append(lines, strings.Split(chart, "\n")...)
 		}
 	}
 
