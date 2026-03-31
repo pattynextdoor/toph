@@ -112,7 +112,7 @@ func (p *ActivityPanel) Render(events []data.Event, width, height int) string {
 
 // renderEvent formats a single event line. In single-session mode the format
 // is compact: "HH:MM:SS ToolName detail". In multi-session mode the session
-// ID prefix is included.
+// ID prefix is included. Lines are hard-truncated to fit within width.
 func (p *ActivityPanel) renderEvent(e data.Event, width int) string {
 	ts := e.Timestamp.Format("15:04:05")
 	tsStyle := lipgloss.NewStyle().Foreground(p.theme.TextDim)
@@ -144,7 +144,6 @@ func (p *ActivityPanel) renderEvent(e data.Event, width int) string {
 
 	// Build prefix: include session ID only with multiple sessions
 	var prefix string
-	var prefixLen int
 	if p.sessionCount > 1 {
 		sessID := e.SessionID
 		if len(sessID) > 6 {
@@ -152,25 +151,53 @@ func (p *ActivityPanel) renderEvent(e data.Event, width int) string {
 		}
 		prefix = fmt.Sprintf("%s %s %s",
 			tsStyle.Render(ts), tsStyle.Render(sessID), labelStyle.Render(typeLabel))
-		prefixLen = 8 + 1 + 6 + 1 + len(typeLabel) // ts + sp + sess + sp + label
 	} else {
 		prefix = fmt.Sprintf("%s %s",
 			tsStyle.Render(ts), labelStyle.Render(typeLabel))
-		prefixLen = 8 + 1 + len(typeLabel) // ts + sp + label
 	}
+
+	// Measure rendered prefix width (accounts for ANSI escape codes)
+	usedWidth := lipgloss.Width(prefix)
+	remaining := width - usedWidth - 1 // -1 for the space separator
 
 	// Prefer tool input (file path, command) as the detail
 	detail := e.ToolInput
 	if detail == "" {
 		detail = e.Text
 	}
-	maxDetail := width - prefixLen - 1
-	if maxDetail > 0 && len(detail) > maxDetail {
-		detail = detail[:maxDetail-3] + "..."
-	}
 
-	if detail != "" {
+	// Shorten file paths: show just the last 2 path components
+	detail = shortenDetail(detail)
+
+	if remaining > 4 && detail != "" {
+		if len(detail) > remaining {
+			detail = detail[:remaining-3] + "..."
+		}
 		return prefix + " " + lipgloss.NewStyle().Foreground(p.theme.TextDim).Render(detail)
 	}
 	return prefix
+}
+
+// shortenDetail trims verbose detail strings. For file paths it shows just
+// the last 2 components (e.g., "landing/page.tsx" instead of
+// "/Users/patty/dev/toph/landing/page.tsx").
+func shortenDetail(s string) string {
+	if len(s) == 0 {
+		return s
+	}
+	// Detect file paths
+	if s[0] == '/' || strings.HasPrefix(s, "~/") {
+		parts := strings.Split(s, "/")
+		// Take last 2 non-empty components
+		var tail []string
+		for i := len(parts) - 1; i >= 0 && len(tail) < 2; i-- {
+			if parts[i] != "" {
+				tail = append([]string{parts[i]}, tail...)
+			}
+		}
+		if len(tail) > 0 {
+			return strings.Join(tail, "/")
+		}
+	}
+	return s
 }
