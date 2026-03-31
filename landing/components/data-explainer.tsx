@@ -35,15 +35,15 @@ export function DataExplainer() {
           {sources.map((source) => (
             <div
               key={source.title}
-              className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-6"
+              className="rounded-lg border border-[#87AFFF]/10 bg-[#87AFFF]/[0.03] p-6"
             >
-              <h3 className="font-sans text-lg font-medium text-zinc-200">
+              <h3 className="font-sans text-lg font-medium text-zinc-100">
                 {source.title}
               </h3>
               <p className="text-sm text-zinc-400 mt-2 leading-relaxed">
                 {source.description}
               </p>
-              <p className="font-mono text-xs text-zinc-600 mt-4">
+              <p className="font-mono text-xs text-[#87AFFF]/50 mt-4">
                 {source.detail}
               </p>
             </div>

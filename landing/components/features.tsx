@@ -28,8 +28,8 @@ export function Features() {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {features.map((feature) => (
-            <div key={feature.label}>
-              <span className="font-mono text-sm text-zinc-600">
+            <div key={feature.label} className="relative pl-5 border-l border-[#87AFFF]/20">
+              <span className="font-mono text-sm text-[#87AFFF]">
                 {feature.label}
               </span>
               <h3 className="text-xl font-semibold text-zinc-50 mt-2">

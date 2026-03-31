@@ -34,7 +34,7 @@ export function HowItWorks() {
               key={step.number}
               className="flex flex-col md:flex-row md:gap-8 gap-2"
             >
-              <span className="font-mono text-4xl font-bold text-zinc-800 md:w-16 shrink-0">
+              <span className="font-mono text-4xl font-bold text-[#87AFFF]/20 md:w-16 shrink-0">
                 {step.number}
               </span>
               <div>
