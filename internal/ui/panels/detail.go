@@ -3,6 +3,7 @@ package panels
 import (
 	"fmt"
 	"image/color"
+	"math"
 	"path/filepath"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 type DetailPanel struct {
 	theme   *ui.Theme
 	focused bool
+	frame   int // incremented each render for animation
 }
 
 // NewDetailPanel creates a new detail panel.
@@ -29,6 +31,8 @@ func (p *DetailPanel) Focused() bool     { return p.focused }
 // Render draws the detail panel for the given session.
 // If session is nil, shows a placeholder.
 func (p *DetailPanel) Render(session *data.Session, width, height int) string {
+	p.frame++
+
 	style := p.theme.PanelNormal
 	if p.focused {
 		style = p.theme.PanelFocus
@@ -64,7 +68,13 @@ func (p *DetailPanel) Render(session *data.Session, width, height int) string {
 		statusColor = p.theme.Active
 	case data.StatusWaiting:
 		statusIcon = "◐ waiting"
-		statusColor = p.theme.Waiting
+		// Pulse between bright amber and dim at ~1Hz
+		pulse := (math.Sin(float64(p.frame)*0.15) + 1) / 2
+		if pulse > 0.5 {
+			statusColor = p.theme.Waiting
+		} else {
+			statusColor = p.theme.Idle
+		}
 	case data.StatusIdle:
 		statusIcon = "○ idle"
 		statusColor = p.theme.Idle

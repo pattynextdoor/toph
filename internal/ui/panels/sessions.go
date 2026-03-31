@@ -3,6 +3,7 @@ package panels
 import (
 	"fmt"
 	"image/color"
+	"math"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ type SessionsPanel struct {
 	theme    *ui.Theme
 	Selected int
 	focused  bool
+	frame    int // incremented each render for animation
 }
 
 // NewSessionsPanel creates a SessionsPanel bound to the given theme.
@@ -42,6 +44,8 @@ func (p *SessionsPanel) SelectedSession(sessions []*data.Session) *data.Session 
 
 // Render draws the session list into the given width x height box.
 func (p *SessionsPanel) Render(sessions []*data.Session, width, height int) string {
+	p.frame++
+
 	style := p.theme.PanelNormal
 	if p.focused {
 		style = p.theme.PanelFocus
@@ -82,7 +86,13 @@ func (p *SessionsPanel) renderSessionRow(s *data.Session, selected bool, width i
 		iconColor = p.theme.Active
 	case data.StatusWaiting:
 		icon = "◐"
-		iconColor = p.theme.Waiting
+		// Pulse between bright amber and dim at ~1Hz
+		pulse := (math.Sin(float64(p.frame)*0.15) + 1) / 2
+		if pulse > 0.5 {
+			iconColor = p.theme.Waiting
+		} else {
+			iconColor = p.theme.Idle
+		}
 	case data.StatusIdle:
 		icon = "○"
 		iconColor = p.theme.Idle
