@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ParticleBridge } from "./particle-bridge";
 
 // =============================================================================
 // Event data — realistic Claude Code tool calls
@@ -263,26 +264,30 @@ export function EventStream() {
       </div>
 
       <div className="max-w-6xl mx-auto px-6 lg:px-16">
-        <div className="flex flex-col lg:flex-row gap-4 items-stretch">
-          {/* Left: Raw JSONL */}
-          <RawStream events={events} />
-
-          {/* Arrow connector */}
-          <div className="hidden lg:flex items-center justify-center shrink-0 px-1">
-            <div className="flex flex-col items-center gap-1">
-              <span className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest">toph</span>
-              <span className="text-zinc-600 text-xl">&rarr;</span>
-            </div>
-          </div>
-          <div className="flex lg:hidden items-center justify-center py-1">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest">toph</span>
-              <span className="text-zinc-600 text-lg">&darr;</span>
-            </div>
+        <div className="relative">
+          {/* Three.js particle bridge overlay */}
+          <div className="hidden lg:block">
+            <ParticleBridge events={events.map((e) => ({ tool: e.tool, id: e.id }))} />
           </div>
 
-          {/* Right: 5 toph panels */}
-          <TophPanels events={events} />
+          <div className="flex flex-col lg:flex-row gap-4 items-stretch relative z-20">
+            {/* Left: Raw JSONL */}
+            <RawStream events={events} />
+
+            {/* Spacer where particles flow through (desktop) */}
+            <div className="hidden lg:block shrink-0 w-[60px]" />
+
+            {/* Mobile arrow */}
+            <div className="flex lg:hidden items-center justify-center py-1">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[10px] text-zinc-600 uppercase tracking-widest">toph</span>
+                <span className="text-zinc-600 text-lg">&darr;</span>
+              </div>
+            </div>
+
+            {/* Right: 5 toph panels */}
+            <TophPanels events={events} />
+          </div>
         </div>
 
         {/* Labels */}
