@@ -27,6 +27,12 @@ func (rb *RingBuffer) Push(e Event) {
 	}
 }
 
+// Clear resets the buffer, discarding all stored events.
+func (rb *RingBuffer) Clear() {
+	rb.head = 0
+	rb.count = 0
+}
+
 // Len returns the number of events currently stored.
 func (rb *RingBuffer) Len() int { return rb.count }
 

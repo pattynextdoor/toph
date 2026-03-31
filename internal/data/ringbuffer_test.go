@@ -54,3 +54,24 @@ func TestRingBuffer_Slice(t *testing.T) {
 		t.Errorf("expected tool-3, got %s", slice[0].ToolName)
 	}
 }
+
+func TestRingBufferClear(t *testing.T) {
+	rb := NewRingBuffer(5)
+	rb.Push(Event{ToolName: "a"})
+	rb.Push(Event{ToolName: "b"})
+	rb.Clear()
+	if rb.Len() != 0 {
+		t.Errorf("expected 0 after clear, got %d", rb.Len())
+	}
+	if len(rb.All()) != 0 {
+		t.Errorf("expected empty All(), got %d events", len(rb.All()))
+	}
+	// Verify buffer is reusable after clear
+	rb.Push(Event{ToolName: "c"})
+	if rb.Len() != 1 {
+		t.Errorf("expected 1 after re-push, got %d", rb.Len())
+	}
+	if rb.All()[0].ToolName != "c" {
+		t.Errorf("expected 'c', got %q", rb.All()[0].ToolName)
+	}
+}

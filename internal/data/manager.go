@@ -124,6 +124,13 @@ func (m *Manager) ActivityFeedLast(n int) []Event {
 	return m.feed.Last(n)
 }
 
+// ClearFeed empties the activity feed ring buffer.
+func (m *Manager) ClearFeed() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.feed.Clear()
+}
+
 // SessionByID returns the session with the given ID, or nil if not found.
 func (m *Manager) SessionByID(id string) *Session {
 	m.mu.RLock()
