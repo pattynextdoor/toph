@@ -94,9 +94,9 @@ function useEventStream() {
 // =============================================================================
 // Mini terminal window wrapper
 // =============================================================================
-function MiniWindow({ title, children, className = "" }: { title: string; children: React.ReactNode; className?: string }) {
+function MiniWindow({ title, children, className = "", panelId }: { title: string; children: React.ReactNode; className?: string; panelId?: string }) {
   return (
-    <div className={`rounded-lg border border-zinc-800 bg-zinc-950 overflow-hidden ${className}`}>
+    <div className={`rounded-lg border border-zinc-800 bg-zinc-950 overflow-hidden ${className}`} data-panel={panelId}>
       <div className="flex items-center gap-1.5 border-b border-zinc-800 px-3 py-1.5">
         <div className="h-1.5 w-1.5 rounded-full bg-zinc-700" />
         <div className="h-1.5 w-1.5 rounded-full bg-zinc-700" />
@@ -118,7 +118,7 @@ function RawStream({ events }: { events: StreamEvent[] }) {
   }, [events]);
 
   return (
-    <div className="w-full lg:w-[38%] shrink-0 rounded-lg border border-zinc-800 bg-zinc-900/30 overflow-hidden">
+    <div className="w-full lg:w-[38%] shrink-0 rounded-lg border border-zinc-800 bg-zinc-900/30 overflow-hidden" data-source="jsonl">
       <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-2">
         <div className="flex items-center gap-2">
           <div className="h-2 w-2 rounded-full bg-green-500/70 animate-pulse" />
@@ -172,7 +172,7 @@ function TophPanels({ events }: { events: StreamEvent[] }) {
   return (
     <div className="flex-1 min-w-0 grid grid-cols-2 gap-2.5">
       {/* Sessions */}
-      <MiniWindow title="Sessions">
+      <MiniWindow title="Sessions" panelId="sessions">
         <div className="space-y-1.5">
           {["api-server", "auth-flow", "tests", "deploy"].map((s) => {
             const active = sessionSet.has(s);
@@ -188,7 +188,7 @@ function TophPanels({ events }: { events: StreamEvent[] }) {
       </MiniWindow>
 
       {/* Activity */}
-      <MiniWindow title="Activity" className="row-span-2">
+      <MiniWindow title="Activity" className="row-span-2" panelId="activity">
         <div className="space-y-1">
           {recentEvents.map((event) => (
             <div key={event.id} className="flex items-center gap-1.5 text-[10px]">
@@ -200,7 +200,7 @@ function TophPanels({ events }: { events: StreamEvent[] }) {
       </MiniWindow>
 
       {/* Detail */}
-      <MiniWindow title="Detail">
+      <MiniWindow title="Detail" panelId="detail">
         <div className="space-y-1 text-[10px]">
           <div><span className="text-zinc-600">session </span><span className="text-zinc-300">api-server</span></div>
           <div><span className="text-zinc-600">tokens </span><span className="text-zinc-300">{totalTokens.toLocaleString()}</span></div>
@@ -215,7 +215,7 @@ function TophPanels({ events }: { events: StreamEvent[] }) {
       </MiniWindow>
 
       {/* Metrics */}
-      <MiniWindow title="Metrics">
+      <MiniWindow title="Metrics" panelId="metrics">
         <div className="space-y-1 text-[10px]">
           <div><span className="text-zinc-600">tokens </span><span className="text-zinc-300">{totalTokens.toLocaleString()}</span></div>
           <div><span className="text-zinc-600">cost </span><span className="text-zinc-300">${cost}</span></div>
@@ -225,7 +225,7 @@ function TophPanels({ events }: { events: StreamEvent[] }) {
       </MiniWindow>
 
       {/* Tools */}
-      <MiniWindow title="Tools">
+      <MiniWindow title="Tools" panelId="tools">
         <div className="space-y-1">
           {sortedTools.map(([tool, count]) => (
             <div key={tool} className="flex items-center gap-1.5 text-[10px]">

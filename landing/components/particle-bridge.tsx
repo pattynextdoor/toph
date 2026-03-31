@@ -1,43 +1,34 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // =============================================================================
 // TUNING CONSTANTS
 // =============================================================================
-const AMBIENT_COUNT = 25;
-const BURST_COUNT = 4;
-const PARTICLE_SPEED = 2.5; // pixels per frame
-const AMBIENT_SPEED = 0.8;
-const PARTICLE_RADIUS = 2.5;
-const AMBIENT_RADIUS = 1.2;
-const TRAIL_ALPHA = 0.92; // lower = longer trails (0-1)
-const GLOW_SIZE = 12;
-
-const TOOL_COLORS: Record<string, string> = {
-  Edit: "#87D7D7",
-  Bash: "#87D787",
-  Read: "#71717a",
-  Write: "#87D787",
-  Glob: "#87D7D7",
-  Grep: "#87D7D7",
-  Agent: "#D7AFFF",
-  TaskCreate: "#FFD787",
+const TRUNK_WIDTH = 2.5;
+const BRANCH_WIDTH = 1.5;
+const ENERGY_SPEED = 0.3;
+const PULSE_LENGTH = 0.22;
+const TRUNK_COLOR = "#87AFFF";
+const PANEL_COLORS: Record<string, string> = {
+  sessions: "#87D787",
+  activity: "#87D7D7",
+  detail:   "#FFD787",
+  metrics:  "#87AFFF",
+  tools:    "#87D7D7",
 };
+const BASE_GLOW = 0.15;
+const PULSE_GLOW = 0.65;
+const GLOW_BLUR = 10;
+const BURST_BRIGHTNESS = 0.8;
+const BURST_DECAY = 0.97;
+const PANEL_IDS = ["sessions", "activity", "detail", "metrics", "tools"];
 
-interface Particle {
+interface BranchTarget {
   x: number;
   y: number;
-  targetX: number;
-  startX: number;
-  startY: number;
-  targetY: number;
-  progress: number;
-  speed: number;
   color: string;
-  radius: number;
-  opacity: number;
-  isBurst: boolean;
+  id: string;
 }
 
 // =============================================================================
@@ -45,98 +36,27 @@ interface Particle {
 // =============================================================================
 export function ParticleBridge({ events }: { events: { tool: string; id: number }[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const particlesRef = useRef<Particle[]>([]);
-  const lastEventIdRef = useRef(-1);
   const animFrameRef = useRef<number>(0);
+  const phaseRef = useRef(0);
+  const burstRef = useRef(0);
+  const lastEventIdRef = useRef(-1);
+  const targetsRef = useRef<BranchTarget[]>([]);
+  const sourceRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const [reducedMotion, setReducedMotion] = useState(false);
 
-  // Get the bridge gap coordinates (called on resize)
-  const getBridgeBounds = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return null;
-    const rect = canvas.getBoundingClientRect();
-    return {
-      width: rect.width,
-      height: rect.height,
-      // Particles flow from left ~15% to right ~85% of the canvas
-      startX: rect.width * 0.05,
-      endX: rect.width * 0.95,
-    };
+  useEffect(() => {
+    setReducedMotion(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   }, []);
 
-  // Spawn ambient particles
-  const spawnAmbients = useCallback(() => {
-    const bounds = getBridgeBounds();
-    if (!bounds) return;
-
-    const ambients: Particle[] = [];
-    for (let i = 0; i < AMBIENT_COUNT; i++) {
-      const startX = bounds.startX;
-      const endX = bounds.endX;
-      const y = bounds.height * (0.15 + Math.random() * 0.7);
-      const targetY = y + (Math.random() - 0.5) * 40;
-
-      ambients.push({
-        x: startX + Math.random() * (endX - startX),
-        y,
-        startX,
-        startY: y,
-        targetX: endX,
-        targetY,
-        progress: Math.random(),
-        speed: AMBIENT_SPEED * (0.5 + Math.random() * 1.0),
-        color: "#87AFFF",
-        radius: AMBIENT_RADIUS * (0.6 + Math.random() * 0.8),
-        opacity: 0.15 + Math.random() * 0.1,
-        isBurst: false,
-      });
-    }
-    particlesRef.current = ambients;
-  }, [getBridgeBounds]);
-
+  // Trigger burst on new events
   useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    if (mq.matches) {
-      setReducedMotion(true);
-      return;
-    }
-    spawnAmbients();
-  }, [spawnAmbients]);
-
-  // Spawn burst particles when new events arrive
-  useEffect(() => {
-    if (reducedMotion || events.length === 0) return;
+    if (events.length === 0) return;
     const latest = events[events.length - 1];
     if (latest.id <= lastEventIdRef.current) return;
     lastEventIdRef.current = latest.id;
+    burstRef.current = BURST_BRIGHTNESS;
+  }, [events]);
 
-    const bounds = getBridgeBounds();
-    if (!bounds) return;
-
-    const color = TOOL_COLORS[latest.tool] || "#87AFFF";
-
-    for (let i = 0; i < BURST_COUNT; i++) {
-      const startY = bounds.height * (0.2 + Math.random() * 0.6);
-      const targetY = bounds.height * (0.15 + Math.random() * 0.7);
-
-      particlesRef.current.push({
-        x: bounds.startX,
-        y: startY,
-        startX: bounds.startX,
-        startY,
-        targetX: bounds.endX,
-        targetY,
-        progress: 0,
-        speed: PARTICLE_SPEED * (0.7 + Math.random() * 0.6),
-        color,
-        radius: PARTICLE_RADIUS * (0.8 + Math.random() * 0.4),
-        opacity: 0.7 + Math.random() * 0.3,
-        isBurst: true,
-      });
-    }
-  }, [events, reducedMotion, getBridgeBounds]);
-
-  // Animation loop
   useEffect(() => {
     if (reducedMotion) return;
     const canvas = canvasRef.current;
@@ -144,78 +64,99 @@ export function ParticleBridge({ events }: { events: { tool: string; id: number 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // The canvas is inside a wrapper div; we need the relative parent that contains both
+    // the canvas wrapper and the content with data-source/data-panel attributes
+    const containerEl = canvas.parentElement?.parentElement;
+    if (!containerEl) return;
+
+    const computePositions = () => {
+      const containerRect = containerEl.getBoundingClientRect();
+
+      // Source: right edge center of the JSONL pane
+      const sourceEl = containerEl.querySelector("[data-source='jsonl']");
+      if (sourceEl) {
+        const r = sourceEl.getBoundingClientRect();
+        sourceRef.current = {
+          x: r.right - containerRect.left,
+          y: r.top + r.height / 2 - containerRect.top,
+        };
+      }
+
+      // Targets: left edge center of each panel
+      const targets: BranchTarget[] = [];
+      for (const id of PANEL_IDS) {
+        const el = containerEl.querySelector(`[data-panel='${id}']`);
+        if (el) {
+          const r = el.getBoundingClientRect();
+          targets.push({
+            x: r.left - containerRect.left,
+            y: r.top + r.height / 2 - containerRect.top,
+            color: PANEL_COLORS[id] || TRUNK_COLOR,
+            id,
+          });
+        }
+      }
+      targetsRef.current = targets;
+    };
+
     const resizeCanvas = () => {
-      const parent = canvas.parentElement;
-      if (!parent) return;
-      const rect = parent.getBoundingClientRect();
-      canvas.width = rect.width * window.devicePixelRatio;
-      canvas.height = rect.height * window.devicePixelRatio;
-      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+      const rect = containerEl.getBoundingClientRect();
+      const dpr = window.devicePixelRatio;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       canvas.style.width = `${rect.width}px`;
       canvas.style.height = `${rect.height}px`;
+      computePositions();
     };
 
     resizeCanvas();
     window.addEventListener("resize", resizeCanvas);
+    // Recompute after layout settles
+    const recomputeTimer = setTimeout(computePositions, 500);
 
     const animate = () => {
       const w = canvas.width / window.devicePixelRatio;
       const h = canvas.height / window.devicePixelRatio;
+      ctx.clearRect(0, 0, w, h);
 
-      // Fade previous frame for trail effect
-      ctx.fillStyle = `rgba(9, 9, 11, ${TRAIL_ALPHA})`;
-      ctx.fillRect(0, 0, w, h);
+      phaseRef.current = (phaseRef.current + ENERGY_SPEED * 0.016) % 1;
+      burstRef.current *= BURST_DECAY;
+      if (burstRef.current < 0.01) burstRef.current = 0;
 
-      const particles = particlesRef.current;
+      const phase = phaseRef.current;
+      const burstMult = 1 + burstRef.current * 3;
+      const src = sourceRef.current;
+      const targets = targetsRef.current;
 
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.progress += p.speed / (p.targetX - p.startX);
-
-        if (p.isBurst && p.progress > 1) {
-          particles.splice(i, 1);
-          continue;
-        }
-
-        // Wrap ambient particles
-        if (!p.isBurst && p.progress > 1) {
-          p.progress = 0;
-          p.startY = h * (0.15 + Math.random() * 0.7);
-          p.targetY = p.startY + (Math.random() - 0.5) * 40;
-        }
-
-        const t = p.progress;
-        // Smooth easing
-        const easedT = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-
-        // Horizontal: linear left to right
-        p.x = p.startX + (p.targetX - p.startX) * easedT;
-
-        // Vertical: interpolate with a slight arc
-        const arcHeight = -30 * (p.isBurst ? 1.5 : 0.5);
-        const arc = Math.sin(t * Math.PI) * arcHeight;
-        p.y = p.startY + (p.targetY - p.startY) * t + arc;
-
-        // Fade in/out
-        let alpha = p.opacity;
-        if (t < 0.1) alpha *= t / 0.1;
-        if (t > 0.8) alpha *= (1 - t) / 0.2;
-
-        // Draw glow
-        if (p.isBurst) {
-          const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, GLOW_SIZE);
-          gradient.addColorStop(0, p.color + Math.round(alpha * 80).toString(16).padStart(2, "0"));
-          gradient.addColorStop(1, p.color + "00");
-          ctx.fillStyle = gradient;
-          ctx.fillRect(p.x - GLOW_SIZE, p.y - GLOW_SIZE, GLOW_SIZE * 2, GLOW_SIZE * 2);
-        }
-
-        // Draw core
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-        ctx.fillStyle = p.color + Math.round(alpha * 255).toString(16).padStart(2, "0");
-        ctx.fill();
+      if (targets.length === 0 || src.x === 0) {
+        animFrameRef.current = requestAnimationFrame(animate);
+        return;
       }
+
+      // Split point: midway between source and nearest target
+      const avgTargetX = targets.reduce((s, t) => s + t.x, 0) / targets.length;
+      const splitX = src.x + (avgTargetX - src.x) * 0.45;
+      const splitY = src.y;
+
+      // Draw trunk: source → split
+      drawEnergy(ctx, src.x, src.y, splitX, splitY, TRUNK_COLOR, TRUNK_WIDTH, phase, burstMult);
+
+      // Draw branches: split → each panel
+      for (let i = 0; i < targets.length; i++) {
+        const t = targets[i];
+        const branchPhase = (phase + i * 0.07) % 1;
+        drawBranch(ctx, splitX, splitY, t.x, t.y, t.color, BRANCH_WIDTH, branchPhase, burstMult);
+      }
+
+      // Split node glow
+      const nodeAlpha = Math.min((BASE_GLOW * 4 + burstRef.current) * burstMult, 1);
+      const grad = ctx.createRadialGradient(splitX, splitY, 0, splitX, splitY, 8);
+      grad.addColorStop(0, hexAlpha(TRUNK_COLOR, nodeAlpha));
+      grad.addColorStop(0.6, hexAlpha(TRUNK_COLOR, nodeAlpha * 0.3));
+      grad.addColorStop(1, hexAlpha(TRUNK_COLOR, 0));
+      ctx.fillStyle = grad;
+      ctx.fillRect(splitX - 10, splitY - 10, 20, 20);
 
       animFrameRef.current = requestAnimationFrame(animate);
     };
@@ -224,6 +165,7 @@ export function ParticleBridge({ events }: { events: { tool: string; id: number 
 
     return () => {
       cancelAnimationFrame(animFrameRef.current);
+      clearTimeout(recomputeTimer);
       window.removeEventListener("resize", resizeCanvas);
     };
   }, [reducedMotion]);
@@ -235,4 +177,136 @@ export function ParticleBridge({ events }: { events: { tool: string; id: number 
       <canvas ref={canvasRef} className="w-full h-full" />
     </div>
   );
+}
+
+// =============================================================================
+// Drawing
+// =============================================================================
+
+function drawEnergy(
+  ctx: CanvasRenderingContext2D,
+  x1: number, y1: number, x2: number, y2: number,
+  color: string, width: number, phase: number, burstMult: number,
+) {
+  // Base dim line
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.strokeStyle = hexAlpha(color, BASE_GLOW * burstMult);
+  ctx.lineWidth = width;
+  ctx.stroke();
+
+  // Glow
+  ctx.save();
+  ctx.filter = `blur(${GLOW_BLUR}px)`;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.strokeStyle = hexAlpha(color, BASE_GLOW * 0.5 * burstMult);
+  ctx.lineWidth = width * 3;
+  ctx.stroke();
+  ctx.restore();
+
+  // Pulse
+  drawPulseLine(ctx, x1, y1, x2, y2, color, width, phase, burstMult);
+}
+
+function drawBranch(
+  ctx: CanvasRenderingContext2D,
+  x1: number, y1: number, x2: number, y2: number,
+  color: string, width: number, phase: number, burstMult: number,
+) {
+  const cpX = x1 + (x2 - x1) * 0.4;
+  const cpY = y1 + (y2 - y1) * 0.2;
+
+  // Base dim curve
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.quadraticCurveTo(cpX, cpY, x2, y2);
+  ctx.strokeStyle = hexAlpha(color, BASE_GLOW * burstMult);
+  ctx.lineWidth = width;
+  ctx.stroke();
+
+  // Glow
+  ctx.save();
+  ctx.filter = `blur(${GLOW_BLUR}px)`;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.quadraticCurveTo(cpX, cpY, x2, y2);
+  ctx.strokeStyle = hexAlpha(color, BASE_GLOW * 0.3 * burstMult);
+  ctx.lineWidth = width * 2.5;
+  ctx.stroke();
+  ctx.restore();
+
+  // Pulse
+  drawPulseBezier(ctx, x1, y1, cpX, cpY, x2, y2, color, width, phase, burstMult);
+
+  // Target node glow
+  const pulseAt = ((phase + PULSE_LENGTH / 2) % 1);
+  if (pulseAt > 0.85) {
+    const arrivalAlpha = (pulseAt - 0.85) / 0.15 * PULSE_GLOW * burstMult * 0.6;
+    const g = ctx.createRadialGradient(x2, y2, 0, x2, y2, 10);
+    g.addColorStop(0, hexAlpha(color, arrivalAlpha));
+    g.addColorStop(1, hexAlpha(color, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(x2 - 12, y2 - 12, 24, 24);
+  }
+}
+
+function drawPulseLine(
+  ctx: CanvasRenderingContext2D,
+  x1: number, y1: number, x2: number, y2: number,
+  color: string, width: number, phase: number, burstMult: number,
+) {
+  const segs = 16;
+  for (let i = 0; i < segs; i++) {
+    const t0 = ((phase + PULSE_LENGTH * i / segs) % 1 + 1) % 1;
+    const t1 = ((phase + PULSE_LENGTH * (i + 1) / segs) % 1 + 1) % 1;
+    const brightness = Math.sin((i / segs) * Math.PI) * PULSE_GLOW * burstMult;
+
+    ctx.save();
+    ctx.filter = `blur(${GLOW_BLUR * 0.4}px)`;
+    ctx.beginPath();
+    ctx.moveTo(x1 + (x2 - x1) * t0, y1 + (y2 - y1) * t0);
+    ctx.lineTo(x1 + (x2 - x1) * t1, y1 + (y2 - y1) * t1);
+    ctx.strokeStyle = hexAlpha(color, brightness);
+    ctx.lineWidth = width * 2;
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawPulseBezier(
+  ctx: CanvasRenderingContext2D,
+  x1: number, y1: number, cpX: number, cpY: number, x2: number, y2: number,
+  color: string, width: number, phase: number, burstMult: number,
+) {
+  const segs = 14;
+  for (let i = 0; i < segs; i++) {
+    const t0 = ((phase + PULSE_LENGTH * i / segs) % 1 + 1) % 1;
+    const t1 = ((phase + PULSE_LENGTH * (i + 1) / segs) % 1 + 1) % 1;
+    const brightness = Math.sin((i / segs) * Math.PI) * PULSE_GLOW * burstMult;
+
+    const px0 = bz(x1, cpX, x2, t0), py0 = bz(y1, cpY, y2, t0);
+    const px1 = bz(x1, cpX, x2, t1), py1 = bz(y1, cpY, y2, t1);
+
+    ctx.save();
+    ctx.filter = `blur(${GLOW_BLUR * 0.4}px)`;
+    ctx.beginPath();
+    ctx.moveTo(px0, py0);
+    ctx.lineTo(px1, py1);
+    ctx.strokeStyle = hexAlpha(color, brightness);
+    ctx.lineWidth = width * 1.8;
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function bz(p0: number, cp: number, p1: number, t: number): number {
+  const mt = 1 - t;
+  return mt * mt * p0 + 2 * mt * t * cp + t * t * p1;
+}
+
+function hexAlpha(hex: string, alpha: number): string {
+  return hex + Math.round(Math.max(0, Math.min(1, alpha)) * 255).toString(16).padStart(2, "0");
 }
