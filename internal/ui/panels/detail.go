@@ -2,6 +2,7 @@ package panels
 
 import (
 	"fmt"
+	"image/color"
 	"path/filepath"
 	"strings"
 	"time"
@@ -106,6 +107,14 @@ func (p *DetailPanel) Render(session *data.Session, width, height int) string {
 	if totalIn > 0 || totalOut > 0 {
 		lines = append(lines, dimStyle.Render("tok ")+dimStyle.Render(fmt.Sprintf("%s in / %s out",
 			formatTokens(totalIn), formatTokens(totalOut))))
+
+		// Context window fill meter
+		ctxMax := data.ContextWindowSize(session.Model)
+		barWidth := innerW - 6 // room for "ctx " prefix and " XX%" suffix
+		if barWidth < 4 {
+			barWidth = 4
+		}
+		lines = append(lines, renderContextBar(totalIn+totalOut, ctxMax, barWidth, p.theme))
 	}
 
 	// Truncate to fit
@@ -137,6 +146,45 @@ func shortenPath(p string, maxLen int) string {
 		return ".../" + short
 	}
 	return base
+}
+
+// renderContextBar builds a colored progress bar showing context window usage.
+// Format: `ctx [████████░░░░] 42%`
+// Color transitions: green (0-50%), amber (50-80%), red (80-100%).
+func renderContextBar(filled, total int, barWidth int, theme *ui.Theme) string {
+	if total <= 0 {
+		return ""
+	}
+	pct := float64(filled) / float64(total) * 100
+	if pct > 100 {
+		pct = 100
+	}
+
+	filledCells := int(pct / 100 * float64(barWidth))
+	if filledCells > barWidth {
+		filledCells = barWidth
+	}
+	emptyCells := barWidth - filledCells
+
+	// Pick color based on fill level
+	var barColor color.Color
+	switch {
+	case pct >= 80:
+		barColor = theme.ProgressHigh
+	case pct >= 50:
+		barColor = theme.ProgressMid
+	default:
+		barColor = theme.ProgressLow
+	}
+
+	filledStyle := lipgloss.NewStyle().Foreground(barColor)
+	emptyStyle := lipgloss.NewStyle().Foreground(theme.TextDim)
+	dimStyle := lipgloss.NewStyle().Foreground(theme.TextDim)
+
+	bar := filledStyle.Render(strings.Repeat("█", filledCells)) +
+		emptyStyle.Render(strings.Repeat("░", emptyCells))
+
+	return dimStyle.Render("ctx ") + bar + dimStyle.Render(fmt.Sprintf(" %2d%%", int(pct)))
 }
 
 // formatTokens formats a token count in a compact way (e.g., "142K", "1.2M").
