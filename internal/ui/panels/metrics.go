@@ -13,6 +13,11 @@ import (
 type MetricsPanel struct {
 	theme   *ui.Theme
 	focused bool
+
+	// Animated accumulators — displayed values ease toward real values
+	displayIn   float64
+	displayOut  float64
+	displayCost float64
 }
 
 // NewMetricsPanel creates a new metrics panel.
@@ -52,7 +57,7 @@ func (p *MetricsPanel) Render(sessions []*data.Session, burnRate float64, burnHi
 		return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render("")
 	}
 
-	title := p.theme.Title.Render("METRICS")
+	title := ui.GradientText("METRICS", p.theme.BorderFocus, p.theme.Subagent)
 	dimStyle := lipgloss.NewStyle().Foreground(p.theme.TextDim)
 	valStyle := lipgloss.NewStyle().Foreground(p.theme.BorderFocus).Bold(true)
 	greenStyle := lipgloss.NewStyle().Foreground(p.theme.Active)
@@ -81,12 +86,16 @@ func (p *MetricsPanel) Render(sessions []*data.Session, burnRate float64, burnHi
 		s.RUnlock()
 	}
 
-	// Tokens: styled values with dim labels
+	// Animate token accumulators toward real values
+	p.displayIn = ui.AnimatedAccumulator(p.displayIn, float64(totalIn))
+	p.displayOut = ui.AnimatedAccumulator(p.displayOut, float64(totalOut))
+
+	// Tokens: styled values with dim labels (using animated display values)
 	lines = append(lines, fmt.Sprintf("%s %s  %s %s",
 		dimStyle.Render("in"),
-		greenStyle.Render(formatTokens(totalIn)),
+		greenStyle.Render(formatTokens(int(p.displayIn))),
 		dimStyle.Render("out"),
-		amberStyle.Render(formatTokens(totalOut))))
+		amberStyle.Render(formatTokens(int(p.displayOut)))))
 
 	// Burn rate
 	if burnRate > 0 {
@@ -108,8 +117,9 @@ func (p *MetricsPanel) Render(sessions []*data.Session, burnRate float64, burnHi
 			dimStyle.Render(formatTokens(totalCacheRead))))
 	}
 
-	// Cost with rate
+	// Cost with rate (animated)
 	cost := estimateCost(model, totalIn, totalOut, totalCacheRead, totalCacheWrite)
+	p.displayCost = ui.AnimatedAccumulator(p.displayCost, cost)
 	prefix := ""
 	if _, ok := pricing[model]; !ok {
 		prefix = "~"
@@ -117,7 +127,7 @@ func (p *MetricsPanel) Render(sessions []*data.Session, burnRate float64, burnHi
 	costStr := fmt.Sprintf("%s %s%s",
 		dimStyle.Render("cost"),
 		dimStyle.Render(prefix),
-		valStyle.Render(fmt.Sprintf("$%.2f", cost)))
+		valStyle.Render(fmt.Sprintf("$%.2f", p.displayCost)))
 	if burnRate > 0 {
 		pr, ok := pricing[model]
 		if !ok {

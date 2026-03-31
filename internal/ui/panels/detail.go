@@ -47,7 +47,7 @@ func (p *DetailPanel) Render(session *data.Session, width, height int, renderPro
 		return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render("")
 	}
 
-	title := p.theme.Title.Render("DETAIL")
+	title := ui.GradientText("DETAIL", p.theme.BorderFocus, p.theme.Subagent)
 	var lines []string
 	lines = append(lines, title)
 

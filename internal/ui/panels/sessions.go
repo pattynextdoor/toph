@@ -58,7 +58,7 @@ func (p *SessionsPanel) Render(sessions []*data.Session, width, height int, spin
 		return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render("")
 	}
 
-	title := p.theme.Title.Render("SESSIONS")
+	title := ui.GradientText("SESSIONS", p.theme.BorderFocus, p.theme.Subagent)
 	var lines []string
 	lines = append(lines, title)
 

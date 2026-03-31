@@ -44,7 +44,7 @@ func (p *ToolsPanel) Render(toolCounts map[string]int, width, height int) string
 		return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render("")
 	}
 
-	title := p.theme.Title.Render("TOOLS")
+	title := ui.GradientText("TOOLS", p.theme.BorderFocus, p.theme.Subagent)
 	var lines []string
 	lines = append(lines, title)
 

@@ -36,6 +36,90 @@ type groupedEvent struct {
 // group starts, even if type+tool match.
 const groupWindow = 60 * time.Second
 
+// gapThreshold is the minimum time between consecutive display items
+// before a "── Xm ──" separator line is inserted.
+const gapThreshold = 2 * time.Minute
+
+// displayItem is either a grouped event or a time-gap separator.
+type displayItem struct {
+	group    *groupedEvent // non-nil for event lines
+	gapLabel string        // non-empty for separator lines
+}
+
+// toolGlyph returns a Unicode icon for the given tool name.
+func toolGlyph(toolName string) string {
+	switch toolName {
+	case "Bash":
+		return "▶"
+	case "Read":
+		return "◇"
+	case "Edit", "Write", "NotebookEdit":
+		return "◆"
+	case "Glob", "Grep":
+		return "⊙"
+	case "Agent", "Skill":
+		return "✦"
+	default:
+		return "○"
+	}
+}
+
+// toolSpecificColor returns a per-tool color so different tool types are
+// visually distinct at a glance.
+func toolSpecificColor(toolName string, theme *ui.Theme) color.Color {
+	switch toolName {
+	case "Bash":
+		return theme.Waiting // amber #FFD787
+	case "Read":
+		return theme.UserMsg // blue #87AFFF
+	case "Edit", "Write", "NotebookEdit":
+		return theme.FileWrite // green #87D787
+	case "Glob", "Grep":
+		return lipgloss.Color("#D7AFD7") // magenta
+	case "Agent", "Skill":
+		return theme.Subagent // lavender #D7AFFF
+	default:
+		return theme.ToolUse // cyan fallback
+	}
+}
+
+// formatGapDuration formats a duration into a compact human-readable string
+// like "2m", "1h 23m", or "5h 21m".
+func formatGapDuration(d time.Duration) string {
+	h := int(d.Hours())
+	m := int(d.Minutes()) % 60
+	if h > 0 && m > 0 {
+		return fmt.Sprintf("%dh %dm", h, m)
+	}
+	if h > 0 {
+		return fmt.Sprintf("%dh", h)
+	}
+	return fmt.Sprintf("%dm", m)
+}
+
+// buildDisplayItems interleaves grouped events with time-gap separators.
+func buildDisplayItems(groups []groupedEvent) []displayItem {
+	if len(groups) == 0 {
+		return nil
+	}
+	items := make([]displayItem, 0, len(groups)+len(groups)/4)
+	items = append(items, displayItem{group: &groups[0]})
+
+	for i := 1; i < len(groups); i++ {
+		prev := groups[i-1].Representative.Timestamp
+		cur := groups[i].Representative.Timestamp
+		gap := cur.Sub(prev)
+		if gap < 0 {
+			gap = -gap
+		}
+		if gap >= gapThreshold {
+			items = append(items, displayItem{gapLabel: formatGapDuration(gap)})
+		}
+		items = append(items, displayItem{group: &groups[i]})
+	}
+	return items
+}
+
 // NewActivityPanel creates an ActivityPanel bound to the given theme.
 func NewActivityPanel(theme *ui.Theme) *ActivityPanel {
 	return &ActivityPanel{theme: theme, autoScroll: true}
@@ -89,14 +173,15 @@ func (p *ActivityPanel) Render(events []data.Event, width, height int) string {
 		return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render("")
 	}
 
-	title := p.theme.Title.Render("ACTIVITY")
+	title := ui.GradientText("ACTIVITY", p.theme.BorderFocus, p.theme.Subagent)
 	visibleLines := innerH - 1
 
-	// Group consecutive same-tool events before pagination so scroll
-	// offsets operate on display lines, not raw events.
+	// Group consecutive same-tool events, then interleave time-gap
+	// separators so the feed shows rhythm between bursts.
 	groups := groupEvents(events)
+	items := buildDisplayItems(groups)
 
-	maxOffset := len(groups) - visibleLines
+	maxOffset := len(items) - visibleLines
 	if maxOffset < 0 {
 		maxOffset = 0
 	}
@@ -104,7 +189,7 @@ func (p *ActivityPanel) Render(events []data.Event, width, height int) string {
 		p.offset = maxOffset
 	}
 
-	end := len(groups) - p.offset
+	end := len(items) - p.offset
 	start := end - visibleLines
 	if start < 0 {
 		start = 0
@@ -113,12 +198,16 @@ func (p *ActivityPanel) Render(events []data.Event, width, height int) string {
 	var lines []string
 	lines = append(lines, title)
 
-	if len(groups) == 0 {
+	if len(items) == 0 {
 		lines = append(lines, lipgloss.NewStyle().Foreground(p.theme.Idle).Render("Waiting for events..."))
 	}
 
-	for _, g := range groups[start:end] {
-		lines = append(lines, p.renderGroupedEvent(g, innerW))
+	for _, item := range items[start:end] {
+		if item.group != nil {
+			lines = append(lines, p.renderGroupedEvent(*item.group, innerW))
+		} else {
+			lines = append(lines, p.renderGapSeparator(item.gapLabel, innerW))
+		}
 	}
 
 	if !p.autoScroll && p.offset > 0 {
@@ -132,7 +221,7 @@ func (p *ActivityPanel) Render(events []data.Event, width, height int) string {
 
 // renderGroupedEvent renders a groupedEvent. Single events (Count == 1)
 // render identically to the old per-event path. Groups show a count badge
-// like "Bash ×3" with the shared detail (if all identical) or no detail.
+// like "▶ Bash ×3" with the shared detail (if all identical) or no detail.
 func (p *ActivityPanel) renderGroupedEvent(g groupedEvent, width int) string {
 	if g.Count == 1 {
 		return p.renderEvent(g.Representative, width)
@@ -142,40 +231,23 @@ func (p *ActivityPanel) renderGroupedEvent(g groupedEvent, width int) string {
 	ts := e.Timestamp.Format("15:04:05")
 	tsStyle := lipgloss.NewStyle().Foreground(p.theme.TextDim)
 
-	var typeLabel string
-	var typeColor = p.theme.TextDim
-
-	switch e.Type {
-	case data.EventToolUse:
-		typeLabel = shortenToolName(e.ToolName)
-		typeColor = p.theme.ToolUse
-	case data.EventToolResult:
-		typeLabel = "result"
-		typeColor = p.theme.ToolUse
-	case data.EventSubagentStart:
-		typeLabel = "agent+"
-		typeColor = p.theme.Subagent
-	case data.EventSubagentEnd:
-		typeLabel = "agent-"
-		typeColor = p.theme.Subagent
-	case data.EventError:
-		typeLabel = "ERROR"
-		typeColor = p.theme.Error
-	default:
-		typeLabel = e.Type.String()
-	}
+	typeLabel, typeColor := p.eventLabelAndColor(e)
 
 	if e.Conflicted {
 		typeColor = p.theme.Error
 		typeLabel = "!" + typeLabel
 	}
 
-	// Add count badge: "Bash ×3"
+	// Add count badge: "▶ Bash ×3"
 	typeLabel = fmt.Sprintf("%s ×%d", typeLabel, g.Count)
 
 	age := time.Since(e.Timestamp)
-	typeColor = ageColor(typeColor, age, p.theme)
+	// Tool label keeps its per-tool color always (categorical, not temporal).
+	// Bold signals freshness instead.
 	labelStyle := lipgloss.NewStyle().Foreground(typeColor)
+	if age < 5*time.Second {
+		labelStyle = labelStyle.Bold(true)
+	}
 
 	var prefix string
 	if p.sessionCount > 1 {
@@ -210,35 +282,52 @@ func (p *ActivityPanel) renderGroupedEvent(g groupedEvent, width int) string {
 	return prefix
 }
 
+// eventLabelAndColor returns the glyph-prefixed label and per-tool color
+// for an event. Centralises the mapping so renderEvent and
+// renderGroupedEvent stay consistent.
+func (p *ActivityPanel) eventLabelAndColor(e data.Event) (string, color.Color) {
+	switch e.Type {
+	case data.EventToolUse:
+		name := shortenToolName(e.ToolName)
+		glyph := toolGlyph(e.ToolName)
+		return glyph + " " + name, toolSpecificColor(e.ToolName, p.theme)
+	case data.EventToolResult:
+		return "· result", p.theme.TextDim
+	case data.EventSubagentStart:
+		return "✦ agent+", p.theme.Subagent
+	case data.EventSubagentEnd:
+		return "✦ agent-", p.theme.Subagent
+	case data.EventError:
+		return "✗ ERROR", p.theme.Error
+	default:
+		return "○ " + e.Type.String(), p.theme.TextDim
+	}
+}
+
+// renderGapSeparator draws a centered time-gap line like "── 5h 21m ──".
+func (p *ActivityPanel) renderGapSeparator(label string, width int) string {
+	middle := " " + label + " "
+	sideLen := (width - len(middle)) / 2
+	if sideLen < 2 {
+		sideLen = 2
+	}
+	side := strings.Repeat("─", sideLen)
+	line := side + middle + side
+	// Trim to exact width
+	if len(line) > width {
+		line = line[:width]
+	}
+	return lipgloss.NewStyle().Foreground(p.theme.TextDim).Render(line)
+}
+
 // renderEvent formats a single event line. In single-session mode the format
-// is compact: "HH:MM:SS ToolName detail". In multi-session mode the session
+// is compact: "HH:MM:SS ▶ Bash detail". In multi-session mode the session
 // ID prefix is included. Lines are hard-truncated to fit within width.
 func (p *ActivityPanel) renderEvent(e data.Event, width int) string {
 	ts := e.Timestamp.Format("15:04:05")
 	tsStyle := lipgloss.NewStyle().Foreground(p.theme.TextDim)
 
-	var typeLabel string
-	var typeColor = p.theme.TextDim
-
-	switch e.Type {
-	case data.EventToolUse:
-		typeLabel = shortenToolName(e.ToolName)
-		typeColor = p.theme.ToolUse
-	case data.EventToolResult:
-		typeLabel = "result"
-		typeColor = p.theme.ToolUse
-	case data.EventSubagentStart:
-		typeLabel = "agent+"
-		typeColor = p.theme.Subagent
-	case data.EventSubagentEnd:
-		typeLabel = "agent-"
-		typeColor = p.theme.Subagent
-	case data.EventError:
-		typeLabel = "ERROR"
-		typeColor = p.theme.Error
-	default:
-		typeLabel = e.Type.String()
-	}
+	typeLabel, typeColor := p.eventLabelAndColor(e)
 
 	// Override color for file conflicts — red with warning prefix
 	if e.Conflicted {
@@ -246,11 +335,13 @@ func (p *ActivityPanel) renderEvent(e data.Event, width int) string {
 		typeLabel = "!" + typeLabel
 	}
 
-	// Age the color: fade to dim over 2 minutes
 	age := time.Since(e.Timestamp)
-	typeColor = ageColor(typeColor, age, p.theme)
-
+	// Tool label keeps its per-tool color always (categorical, not temporal).
+	// Bold signals freshness instead.
 	labelStyle := lipgloss.NewStyle().Foreground(typeColor)
+	if age < 5*time.Second {
+		labelStyle = labelStyle.Bold(true)
+	}
 
 	// Build prefix: include session ID only with multiple sessions
 	var prefix string

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
 
 	"charm.land/lipgloss/v2"
 )
@@ -10,6 +11,7 @@ import (
 // and connection/source info on the right. It spans the full terminal width.
 type StatusBar struct {
 	theme *Theme
+	frame int
 }
 
 // NewStatusBar creates a StatusBar bound to the given theme.
@@ -55,6 +57,8 @@ func (sb *StatusBar) RenderFilter(width int, filterText string, editing bool) st
 // "~/.claude/projects"), connected indicates whether the source is live, and
 // conflictCount is the number of files currently touched by multiple sessions.
 func (sb *StatusBar) Render(width int, activeCount int, source string, connected bool, conflictCount int) string {
+	sb.frame++
+
 	keyStyle := lipgloss.NewStyle().Bold(true).Foreground(sb.theme.BorderFocus)
 	descStyle := lipgloss.NewStyle().Foreground(sb.theme.TextDim)
 
@@ -65,13 +69,22 @@ func (sb *StatusBar) Render(width int, activeCount int, source string, connected
 		keyStyle.Render("q"), descStyle.Render("quit"),
 	)
 
+	// Connection indicator with breathing pulse
 	connIcon := "●"
-	connColor := sb.theme.Active
-	if !connected {
+	var connCol color.Color
+	if connected {
+		// Pulse between bright green and slightly dimmer green
+		pulse := PulseAlpha(sb.frame, 0.08)
+		bright := 0x87 + int(float64(0xFF-0x87)*pulse)
+		if bright > 0xFF {
+			bright = 0xFF
+		}
+		connCol = lipgloss.Color(fmt.Sprintf("#%02xD787", bright))
+	} else {
 		connIcon = "○"
-		connColor = sb.theme.Error
+		connCol = lipgloss.Color("#FF8787")
 	}
-	connStyle := lipgloss.NewStyle().Foreground(connColor)
+	connStyle := lipgloss.NewStyle().Foreground(connCol)
 
 	var conflictIndicator string
 	if conflictCount > 0 {
