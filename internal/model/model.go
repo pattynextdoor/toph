@@ -5,6 +5,8 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/bubbles/v2/progress"
+	"charm.land/bubbles/v2/spinner"
 	"charm.land/lipgloss/v2"
 	"github.com/pattynextdoor/toph/internal/data"
 	"github.com/pattynextdoor/toph/internal/notify"
@@ -46,6 +48,9 @@ type Model struct {
 	tools    *panels.ToolsPanel
 	help     *panels.HelpPanel
 
+	spinner  spinner.Model
+	progress progress.Model
+
 	focusedPanel  int
 	width         int
 	height        int
@@ -71,13 +76,22 @@ func New(manager *data.Manager) Model {
 		metrics:   panels.NewMetricsPanel(theme),
 		tools:     panels.NewToolsPanel(theme),
 		help:      panels.NewHelpPanel(theme),
+		spinner: spinner.New(
+			spinner.WithSpinner(spinner.MiniDot),
+			spinner.WithStyle(lipgloss.NewStyle().Foreground(theme.Active)),
+		),
+		progress: progress.New(
+			progress.WithColors(theme.ProgressLow, theme.ProgressHigh),
+			progress.WithScaled(true),
+			progress.WithoutPercentage(),
+		),
 	}
 }
 
 // Init kicks off the 30fps tick loop. The first WindowSizeMsg from Bubble Tea
 // will set m.ready = true and trigger the initial layout computation.
 func (m Model) Init() tea.Cmd {
-	return tick()
+	return tea.Batch(tick(), m.spinner.Tick)
 }
 
 // Update handles all incoming messages: window resizes, tick-driven flushes,
@@ -117,6 +131,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
+
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+
+	case progress.FrameMsg:
+		var cmd tea.Cmd
+		m.progress, cmd = m.progress.Update(msg)
+		return m, cmd
 	}
 
 	return m, nil
@@ -244,9 +268,13 @@ func (m Model) View() tea.View {
 
 	// Render panels.
 	m.activity.SetSessionCount(len(activeSessions))
-	sessionsView := m.sessions.Render(displaySessions, l.LeftWidth, l.SessionsHeight)
+	sessionsView := m.sessions.Render(displaySessions, l.LeftWidth, l.SessionsHeight, m.spinner.View())
 	selectedSession := m.sessions.SelectedSession(displaySessions)
-	detailView := m.detail.Render(selectedSession, l.LeftWidth, l.DetailHeight)
+	progressRenderer := func(pct float64, width int) string {
+		m.progress.SetWidth(width)
+		return m.progress.ViewAs(pct)
+	}
+	detailView := m.detail.Render(selectedSession, l.LeftWidth, l.DetailHeight, progressRenderer)
 	activityView := m.activity.Render(displayEvents, l.RightWidth, l.ActivityHeight)
 	burnRate := m.manager.CurrentBurnRate()
 	burnHistory := m.manager.GetBurnRateHistory()

@@ -43,7 +43,8 @@ func (p *SessionsPanel) SelectedSession(sessions []*data.Session) *data.Session 
 }
 
 // Render draws the session list into the given width x height box.
-func (p *SessionsPanel) Render(sessions []*data.Session, width, height int) string {
+// spinnerFrame is the current frame of the Bubbles spinner for active sessions.
+func (p *SessionsPanel) Render(sessions []*data.Session, width, height int, spinnerFrame string) string {
 	p.frame++
 
 	style := p.theme.PanelNormal
@@ -69,7 +70,7 @@ func (p *SessionsPanel) Render(sessions []*data.Session, width, height int) stri
 		if i >= innerH-1 {
 			break
 		}
-		lines = append(lines, p.renderSessionRow(s, i == p.Selected, innerW))
+		lines = append(lines, p.renderSessionRow(s, i == p.Selected, innerW, spinnerFrame))
 	}
 
 	content := strings.Join(lines, "\n")
@@ -112,12 +113,12 @@ func renderSparkline(history [data.SparklineSamples]int, theme *ui.Theme) string
 }
 
 // renderSessionRow formats a single session as: icon project branch sparkline age
-func (p *SessionsPanel) renderSessionRow(s *data.Session, selected bool, width int) string {
+func (p *SessionsPanel) renderSessionRow(s *data.Session, selected bool, width int, spinnerFrame string) string {
 	var icon string
 	var iconColor color.Color
 	switch s.Status {
 	case data.StatusActive:
-		icon = "●"
+		icon = spinnerFrame // animated spinner from Bubbles
 		iconColor = p.theme.Active
 	case data.StatusWaiting:
 		icon = "◐"

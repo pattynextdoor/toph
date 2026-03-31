@@ -30,7 +30,10 @@ func (p *DetailPanel) Focused() bool     { return p.focused }
 
 // Render draws the detail panel for the given session.
 // If session is nil, shows a placeholder.
-func (p *DetailPanel) Render(session *data.Session, width, height int) string {
+// ProgressRenderer renders a progress bar at a given percent and width.
+type ProgressRenderer func(percent float64, width int) string
+
+func (p *DetailPanel) Render(session *data.Session, width, height int, renderProgress ProgressRenderer) string {
 	p.frame++
 
 	style := p.theme.PanelNormal
@@ -123,16 +126,21 @@ func (p *DetailPanel) Render(session *data.Session, width, height int) string {
 			formatTokens(totalIn), formatTokens(totalOut))))
 
 		ctxMax := data.ContextWindowSize(session.Model)
-		pct := float64(totalIn+totalOut) / float64(ctxMax) * 100
-		if pct > 100 {
-			pct = 100
+		pct := float64(totalIn+totalOut) / float64(ctxMax)
+		if pct > 1.0 {
+			pct = 1.0
 		}
-		// Compact bar: "ctx ===----  8%" using safe ASCII chars
-		barWidth := innerW / 2
+		// Use Bubbles progress bar if available, fall back to ASCII
+		barWidth := innerW - 10 // room for "ctx " prefix and " XX%" suffix
 		if barWidth < 6 {
 			barWidth = 6
 		}
-		lines = append(lines, renderContextBar(totalIn+totalOut, ctxMax, barWidth, p.theme))
+		if renderProgress != nil {
+			lines = append(lines, dimStyle.Render("ctx ")+renderProgress(pct, barWidth)+
+				dimStyle.Render(fmt.Sprintf(" %d%%", int(pct*100))))
+		} else {
+			lines = append(lines, renderContextBar(totalIn+totalOut, ctxMax, barWidth, p.theme))
+		}
 	}
 
 	// Subagent list — no header, just inline
