@@ -41,6 +41,7 @@ type Model struct {
 	activity *panels.ActivityPanel
 	metrics  *panels.MetricsPanel
 	tools    *panels.ToolsPanel
+	help     *panels.HelpPanel
 
 	focusedPanel  int
 	width         int
@@ -62,6 +63,7 @@ func New(manager *data.Manager) Model {
 		activity:  panels.NewActivityPanel(theme),
 		metrics:   panels.NewMetricsPanel(theme),
 		tools:     panels.NewToolsPanel(theme),
+		help:      panels.NewHelpPanel(theme),
 	}
 }
 
@@ -105,6 +107,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // handleKey processes keyboard input — quit, panel focus cycling, and
 // panel-specific navigation (scroll, cursor movement).
 func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	// Toggle help overlay with ?. When visible, only ? and Esc dismiss it.
+	if isHelp(msg) {
+		m.help.Toggle()
+		return m, nil
+	}
+	if m.help.Visible {
+		if isEsc(msg) {
+			m.help.Hide()
+		}
+		return m, nil
+	}
+
 	if isQuit(msg) {
 		return m, tea.Quit
 	}
@@ -193,6 +207,10 @@ func (m Model) View() tea.View {
 	mainView := lipgloss.JoinHorizontal(lipgloss.Top, leftCol, rightCol)
 
 	statusBar := m.statusBar.Render(m.width, len(activeSessions), "jsonl", true)
+
+	if m.help.Visible {
+		return tea.NewView(m.help.Render(m.width, m.height))
+	}
 
 	return tea.NewView(lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar))
 }

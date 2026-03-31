@@ -35,6 +35,14 @@ func isDown(msg tea.KeyPressMsg) bool {
 	return k == "j" || k == "down"
 }
 
+func isHelp(msg tea.KeyPressMsg) bool {
+	return msg.String() == "?"
+}
+
+func isEsc(msg tea.KeyPressMsg) bool {
+	return msg.String() == "escape"
+}
+
 func isJumpToPanel(msg tea.KeyPressMsg) (int, bool) {
 	switch msg.String() {
 	case "1":
