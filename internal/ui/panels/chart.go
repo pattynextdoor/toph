@@ -29,12 +29,19 @@ func renderBrailleChart(values []int, width int, col color.Color) string {
 	// Resample values to fit the desired width
 	sampled := resample(values, width)
 
-	// Find max for scaling
-	max := 1
+	// Find max for scaling — if all zeros, nothing to render
+	max := 0
+	nonZero := 0
 	for _, v := range sampled {
 		if v > max {
 			max = v
 		}
+		if v > 0 {
+			nonZero++
+		}
+	}
+	if max == 0 || nonZero < 2 {
+		return "" // not enough data to render a meaningful chart
 	}
 
 	// Braille characters for 8 vertical levels (empty to full)
