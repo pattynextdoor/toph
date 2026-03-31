@@ -56,6 +56,10 @@ type Event struct {
 	SessionID string
 	AgentID   string
 
+	Project   string
+	CWD       string
+	GitBranch string
+
 	ToolName   string
 	ToolInput  string
 	Text       string

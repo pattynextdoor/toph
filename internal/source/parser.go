@@ -27,11 +27,11 @@ func ParseLine(line []byte, project string) []data.Event {
 
 	switch header.Type {
 	case "user":
-		return parseUser(line)
+		return parseUser(line, project)
 	case "assistant":
-		return parseAssistant(line)
+		return parseAssistant(line, project)
 	case "system":
-		return parseSystem(line)
+		return parseSystem(line, project)
 	default:
 		// file-history-snapshot, progress, queue-operation, last-prompt, etc.
 		return nil
@@ -102,7 +102,7 @@ type contentBlock struct {
 // Per-type parsers
 // ---------------------------------------------------------------------------
 
-func parseUser(line []byte) []data.Event {
+func parseUser(line []byte, project string) []data.Event {
 	var rec userRecord
 	if err := json.Unmarshal(line, &rec); err != nil {
 		return nil
@@ -118,11 +118,14 @@ func parseUser(line []byte) []data.Event {
 		Timestamp: parseTimestamp(rec.Timestamp),
 		SessionID: rec.SessionID,
 		AgentID:   rec.AgentID,
+		Project:   project,
+		CWD:       rec.CWD,
+		GitBranch: rec.GitBranch,
 		Text:      text,
 	}}
 }
 
-func parseAssistant(line []byte) []data.Event {
+func parseAssistant(line []byte, project string) []data.Event {
 	var rec assistantRecord
 	if err := json.Unmarshal(line, &rec); err != nil {
 		return nil
@@ -141,6 +144,9 @@ func parseAssistant(line []byte) []data.Event {
 					Timestamp: ts,
 					SessionID: rec.SessionID,
 					AgentID:   rec.AgentID,
+					Project:   project,
+					CWD:       rec.CWD,
+					GitBranch: rec.GitBranch,
 					ToolName:  b.Name,
 					ToolInput: summarizeToolInput(b.Name, b.Input),
 				})
@@ -154,6 +160,9 @@ func parseAssistant(line []byte) []data.Event {
 		Timestamp:                ts,
 		SessionID:                rec.SessionID,
 		AgentID:                  rec.AgentID,
+		Project:                  project,
+		CWD:                      rec.CWD,
+		GitBranch:                rec.GitBranch,
 		Model:                    rec.Message.Model,
 		StopReason:               rec.Message.StopReason,
 		InputTokens:              rec.Message.Usage.InputTokens,
@@ -166,7 +175,7 @@ func parseAssistant(line []byte) []data.Event {
 	return events
 }
 
-func parseSystem(line []byte) []data.Event {
+func parseSystem(line []byte, project string) []data.Event {
 	var rec baseRecord
 	if err := json.Unmarshal(line, &rec); err != nil {
 		return nil
@@ -176,6 +185,9 @@ func parseSystem(line []byte) []data.Event {
 		Timestamp: parseTimestamp(rec.Timestamp),
 		SessionID: rec.SessionID,
 		AgentID:   rec.AgentID,
+		Project:   project,
+		CWD:       rec.CWD,
+		GitBranch: rec.GitBranch,
 	}}
 }
 

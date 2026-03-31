@@ -44,7 +44,12 @@ func (m *Manager) HandleEvent(e Event) {
 	}
 
 	sess.UpdateFromEvent(e)
-	m.feed.Push(e)
+
+	// Only push high-signal events to the activity feed.
+	// Assistant text and system messages are too frequent and noisy.
+	if isActivityFeedEvent(e) {
+		m.feed.Push(e)
+	}
 }
 
 // Sessions returns all known sessions sorted by most recently updated first.
@@ -100,6 +105,19 @@ func (m *Manager) SessionByID(id string) *Session {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.sessions[id]
+}
+
+// isActivityFeedEvent returns true for events worth showing in the activity
+// feed. Filters out high-frequency low-signal events like assistant text
+// (think) and system messages that would otherwise drown out tool calls and
+// user messages.
+func isActivityFeedEvent(e Event) bool {
+	switch e.Type {
+	case EventAssistantText, EventSystemMessage:
+		return false
+	default:
+		return true
+	}
 }
 
 // ToolCounts aggregates tool usage counts across all sessions.

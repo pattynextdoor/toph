@@ -31,6 +31,15 @@ func (p *SessionsPanel) Focused() bool     { return p.focused }
 func (p *SessionsPanel) MoveUp()           { if p.Selected > 0 { p.Selected-- } }
 func (p *SessionsPanel) MoveDown(max int)  { if p.Selected < max-1 { p.Selected++ } }
 
+// SelectedSession returns the currently selected session from the provided
+// list, or nil if the list is empty or selection is out of bounds.
+func (p *SessionsPanel) SelectedSession(sessions []*data.Session) *data.Session {
+	if len(sessions) == 0 || p.Selected >= len(sessions) {
+		return nil
+	}
+	return sessions[p.Selected]
+}
+
 // Render draws the session list into the given width x height box.
 func (p *SessionsPanel) Render(sessions []*data.Session, width, height int) string {
 	style := p.theme.PanelNormal
@@ -87,7 +96,7 @@ func (p *SessionsPanel) renderSessionRow(s *data.Session, selected bool, width i
 
 	iconStyle := lipgloss.NewStyle().Foreground(iconColor)
 
-	project := s.Project
+	project := humanizeProject(s.Project)
 	if project == "" {
 		maxLen := 8
 		if len(s.ID) < maxLen {
@@ -117,6 +126,23 @@ func (p *SessionsPanel) renderSessionRow(s *data.Session, selected bool, width i
 			Render(row)
 	}
 	return row
+}
+
+// humanizeProject converts a Claude Code project dir name (e.g.,
+// "-Users-patty-dev-toph") into a short readable name (e.g., "toph").
+// It takes the last path segment after splitting on hyphens that look
+// like path separators.
+func humanizeProject(name string) string {
+	if name == "" {
+		return ""
+	}
+	// Claude Code encodes paths as: -Users-patty-dev-toph
+	// Split on "-" and take the last non-empty segment
+	parts := strings.Split(strings.TrimLeft(name, "-"), "-")
+	if len(parts) == 0 {
+		return name
+	}
+	return parts[len(parts)-1]
 }
 
 // formatDuration returns a compact human-readable duration string.

@@ -37,6 +37,7 @@ type Model struct {
 	statusBar *ui.StatusBar
 
 	sessions *panels.SessionsPanel
+	detail   *panels.DetailPanel
 	activity *panels.ActivityPanel
 	tools    *panels.ToolsPanel
 
@@ -56,6 +57,7 @@ func New(manager *data.Manager) Model {
 		theme:     theme,
 		statusBar: ui.NewStatusBar(theme),
 		sessions:  panels.NewSessionsPanel(theme),
+		detail:    panels.NewDetailPanel(theme),
 		activity:  panels.NewActivityPanel(theme),
 		tools:     panels.NewToolsPanel(theme),
 	}
@@ -125,7 +127,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.sessions.MoveUp()
 		}
 		if isDown(msg) {
-			m.sessions.MoveDown(len(m.manager.ActiveSessions(data.DefaultActiveThreshold)))
+			m.sessions.MoveDown(len(m.manager.Sessions()))
 		}
 	case PanelActivity:
 		switch {
@@ -148,6 +150,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m *Model) setFocus(panel int) {
 	m.focusedPanel = panel
 	m.sessions.SetFocused(panel == PanelSessions)
+	m.detail.SetFocused(panel == PanelDetail)
 	m.activity.SetFocused(panel == PanelActivity)
 	m.tools.SetFocused(panel == PanelTools)
 }
@@ -172,20 +175,12 @@ func (m Model) View() tea.View {
 	toolCounts := m.manager.ToolCounts()
 	activeSessions := m.manager.ActiveSessions(data.DefaultActiveThreshold)
 
-	// Render the three implemented panels.
+	// Render panels.
 	sessionsView := m.sessions.Render(allSessions, l.LeftWidth, l.SessionsHeight)
+	selectedSession := m.sessions.SelectedSession(allSessions)
+	detailView := m.detail.Render(selectedSession, l.LeftWidth, l.DetailHeight)
 	activityView := m.activity.Render(feedEvents, l.RightWidth, l.ActivityHeight)
 	toolsView := m.tools.Render(toolCounts, l.LeftWidth, l.ToolsHeight)
-
-	// Detail panel — placeholder until Phase 2.
-	detailStyle := m.theme.PanelNormal
-	if m.focusedPanel == PanelDetail {
-		detailStyle = m.theme.PanelFocus
-	}
-	detailView := detailStyle.
-		Width(l.LeftWidth - 2).Height(l.DetailHeight - 2).
-		Render(m.theme.Title.Render("DETAIL") + "\n" +
-			lipgloss.NewStyle().Foreground(m.theme.Idle).Render("Select a session"))
 
 	// Metrics panel — placeholder until Phase 2.
 	metricsStyle := m.theme.PanelNormal

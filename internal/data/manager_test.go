@@ -66,6 +66,30 @@ func TestManager_ActiveSessions(t *testing.T) {
 	}
 }
 
+func TestManager_ActivityFeedFiltering(t *testing.T) {
+	m := NewManager()
+
+	// Tool use events should appear in the feed
+	m.HandleEvent(Event{Type: EventToolUse, Timestamp: time.Now(), SessionID: "s1", ToolName: "Bash"})
+	// User messages should appear
+	m.HandleEvent(Event{Type: EventUserMessage, Timestamp: time.Now(), SessionID: "s1", Text: "hi"})
+	// Assistant text should be FILTERED from the feed
+	m.HandleEvent(Event{Type: EventAssistantText, Timestamp: time.Now(), SessionID: "s1", Text: "thinking..."})
+	// System messages should be FILTERED from the feed
+	m.HandleEvent(Event{Type: EventSystemMessage, Timestamp: time.Now(), SessionID: "s1"})
+
+	events := m.ActivityFeed()
+	if len(events) != 2 {
+		t.Errorf("expected 2 feed events (filtered out think+system), got %d", len(events))
+	}
+
+	// Verify token accounting still works despite feed filtering
+	s := m.SessionByID("s1")
+	if s == nil {
+		t.Fatal("session not found")
+	}
+}
+
 func TestManager_ToolCounts(t *testing.T) {
 	m := NewManager()
 	m.HandleEvent(Event{Type: EventToolUse, Timestamp: time.Now(), SessionID: "s1", ToolName: "Bash"})

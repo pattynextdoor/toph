@@ -71,6 +71,13 @@ type Subagent struct {
 	UpdatedAt   time.Time
 }
 
+// RLock acquires a read lock on the session for reading multiple fields
+// atomically.
+func (s *Session) RLock() { s.mu.RLock() }
+
+// RUnlock releases the read lock.
+func (s *Session) RUnlock() { s.mu.RUnlock() }
+
 // NewSession creates a Session with sensible defaults.
 func NewSession(id, project string) *Session {
 	now := time.Now()
@@ -93,6 +100,15 @@ func (s *Session) UpdateFromEvent(e Event) {
 	s.UpdatedAt = e.Timestamp
 	if e.Model != "" {
 		s.Model = e.Model
+	}
+	if e.Project != "" {
+		s.Project = e.Project
+	}
+	if e.CWD != "" {
+		s.CWD = e.CWD
+	}
+	if e.GitBranch != "" {
+		s.GitBranch = e.GitBranch
 	}
 
 	switch e.Type {
