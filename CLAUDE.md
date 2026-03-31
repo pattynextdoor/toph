@@ -145,30 +145,45 @@ toph/
 │   └── toph/
 │       └── main.go           # Entry point, arg parsing, context setup
 ├── internal/
+│   ├── config/
+│   │   └── config.go         # CLI flags, future config file
+│   ├── data/
+│   │   ├── conflicts.go      # File conflict detection
+│   │   ├── event.go          # Normalized event types
+│   │   ├── metrics.go        # Token/cost calculations
+│   │   ├── ringbuffer.go     # Activity feed ring buffer
+│   │   └── session.go        # Session state model
+│   ├── export/
+│   │   └── export.go         # toph export --json command
 │   ├── model/
-│   │   ├── model.go          # Root Bubble Tea model (30fps tick loop)
-│   │   └── keys.go           # Keybinding definitions
-│   ├── ui/
-│   │   ├── panels/
-│   │   │   ├── sessions.go   # Panel 1: Session list
-│   │   │   ├── detail.go     # Panel 2: Session detail
-│   │   │   ├── activity.go   # Panel 3: Activity feed (ring buffer)
-│   │   │   ├── metrics.go    # Panel 4: Token/cost metrics
-│   │   │   └── tools.go      # Panel 5: Tool usage chart
-│   │   ├── layout.go         # Panel arrangement + responsive sizing
-│   │   ├── theme.go          # Color palette, border styles
-│   │   └── statusbar.go      # Bottom status bar
+│   │   ├── filter.go         # Session/event filtering
+│   │   ├── keys.go           # Keybinding definitions
+│   │   └── model.go          # Root Bubble Tea model (30fps tick loop)
+│   ├── notify/
+│   │   └── notify.go         # Desktop notifications (macOS)
+│   ├── serve/
+│   │   └── serve.go          # Wish SSH server for remote access
+│   ├── setup/
+│   │   └── setup.go          # toph setup hook configuration
 │   ├── source/               # Source interface implementations
 │   │   ├── source.go         # Source interface definition
 │   │   ├── jsonl.go          # JSONLSource: fsnotify watcher + parser
 │   │   ├── hooks.go          # HookSource: HTTP server on localhost
+│   │   ├── parser.go         # JSONL record parser
 │   │   └── process.go        # ProcessSource: ps-based detection
-│   ├── data/
-│   │   ├── session.go        # Session state model
-│   │   ├── event.go          # Normalized event types
-│   │   └── metrics.go        # Token/cost calculations
-│   └── config/
-│       └── config.go         # CLI flags, future config file
+│   └── ui/
+│       ├── panels/
+│       │   ├── activity.go   # Panel 3: Activity feed (ring buffer)
+│       │   ├── chart.go      # Braille chart rendering
+│       │   ├── detail.go     # Panel 2: Session detail
+│       │   ├── help.go       # Help overlay panel
+│       │   ├── metrics.go    # Panel 4: Token/cost metrics
+│       │   ├── sessions.go   # Panel 1: Session list
+│       │   └── tools.go      # Panel 5: Tool usage chart
+│       ├── animate.go        # Animation utilities
+│       ├── layout.go         # Panel arrangement + responsive sizing
+│       ├── statusbar.go      # Bottom status bar
+│       └── theme.go          # Color palette, border styles
 ├── go.mod
 ├── go.sum
 ├── CLAUDE.md                  # This file
@@ -222,7 +237,10 @@ toph/
 ### Panel 3 — Activity Feed (right, upper)
 - Scrollable real-time events across ALL sessions
 - Format: `[timestamp] [session] [event_type] description`
-- Color coding: tool use (cyan), file write (green), error (red), thinking (dim), subagent (magenta)
+- Color coding: per-tool colors — Bash (amber), Read (blue), Edit/Write (green), Glob/Grep (magenta), Agent/Skill (lavender), errors (red)
+- Per-tool Unicode glyphs: ▶ Bash, ◇ Read, ◆ Edit/Write, ⊙ Glob/Grep, ✦ Agent/Skill
+- Consecutive same-tool events grouped with count badge (e.g., "▶ Bash ×3")
+- Time gaps > 2 minutes shown as centered separator lines
 - Auto-scrolls to bottom; user scroll-up disables auto-scroll, shows "↓ new" indicator
 - 1,000 event ring buffer
 
