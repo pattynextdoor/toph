@@ -113,7 +113,7 @@ func (m *Manager) SessionByID(id string) *Session {
 // user messages.
 func isActivityFeedEvent(e Event) bool {
 	switch e.Type {
-	case EventAssistantText, EventSystemMessage:
+	case EventAssistantText, EventSystemMessage, EventUserMessage:
 		return false
 	default:
 		return true

@@ -176,6 +176,7 @@ func (m Model) View() tea.View {
 	activeSessions := m.manager.ActiveSessions(data.DefaultActiveThreshold)
 
 	// Render panels.
+	m.activity.SetSessionCount(len(activeSessions))
 	sessionsView := m.sessions.Render(allSessions, l.LeftWidth, l.SessionsHeight)
 	selectedSession := m.sessions.SelectedSession(allSessions)
 	detailView := m.detail.Render(selectedSession, l.LeftWidth, l.DetailHeight)

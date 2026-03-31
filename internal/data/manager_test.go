@@ -71,7 +71,7 @@ func TestManager_ActivityFeedFiltering(t *testing.T) {
 
 	// Tool use events should appear in the feed
 	m.HandleEvent(Event{Type: EventToolUse, Timestamp: time.Now(), SessionID: "s1", ToolName: "Bash"})
-	// User messages should appear
+	// User messages should be FILTERED (low signal)
 	m.HandleEvent(Event{Type: EventUserMessage, Timestamp: time.Now(), SessionID: "s1", Text: "hi"})
 	// Assistant text should be FILTERED from the feed
 	m.HandleEvent(Event{Type: EventAssistantText, Timestamp: time.Now(), SessionID: "s1", Text: "thinking..."})
@@ -79,8 +79,8 @@ func TestManager_ActivityFeedFiltering(t *testing.T) {
 	m.HandleEvent(Event{Type: EventSystemMessage, Timestamp: time.Now(), SessionID: "s1"})
 
 	events := m.ActivityFeed()
-	if len(events) != 2 {
-		t.Errorf("expected 2 feed events (filtered out think+system), got %d", len(events))
+	if len(events) != 1 {
+		t.Errorf("expected 1 feed event (only tool_use), got %d", len(events))
 	}
 
 	// Verify token accounting still works despite feed filtering

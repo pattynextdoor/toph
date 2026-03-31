@@ -13,10 +13,11 @@ import (
 // scroll state and auto-scrolls to the bottom unless the user scrolls up,
 // at which point a "new" indicator appears.
 type ActivityPanel struct {
-	theme      *ui.Theme
-	focused    bool
-	autoScroll bool
-	offset     int
+	theme        *ui.Theme
+	focused      bool
+	autoScroll   bool
+	offset       int
+	sessionCount int // set by caller to control compact mode
 }
 
 // NewActivityPanel creates an ActivityPanel bound to the given theme.
@@ -54,6 +55,10 @@ func (p *ActivityPanel) ScrollToTop() {
 	p.autoScroll = false
 	p.offset = 999999
 }
+
+// SetSessionCount tells the panel how many active sessions exist so it can
+// decide whether to show session IDs (multi-session) or hide them (single).
+func (p *ActivityPanel) SetSessionCount(n int) { p.sessionCount = n }
 
 // Render draws the event feed into the given width x height box.
 func (p *ActivityPanel) Render(events []data.Event, width, height int) string {
@@ -105,7 +110,9 @@ func (p *ActivityPanel) Render(events []data.Event, width, height int) string {
 	return style.Width(width - 2).Height(height - 2).Render(content)
 }
 
-// renderEvent formats a single event line: [time] [session] [type] detail
+// renderEvent formats a single event line. In single-session mode the format
+// is compact: "HH:MM:SS ToolName detail". In multi-session mode the session
+// ID prefix is included.
 func (p *ActivityPanel) renderEvent(e data.Event, width int) string {
 	ts := e.Timestamp.Format("15:04:05")
 	tsStyle := lipgloss.NewStyle().Foreground(p.theme.TextDim)
@@ -120,15 +127,6 @@ func (p *ActivityPanel) renderEvent(e data.Event, width int) string {
 	case data.EventToolResult:
 		typeLabel = "result"
 		typeColor = p.theme.ToolUse
-	case data.EventAssistantText:
-		typeLabel = "think"
-		typeColor = p.theme.TextDim
-	case data.EventUserMessage:
-		typeLabel = "user"
-		typeColor = p.theme.UserMsg
-	case data.EventSystemMessage:
-		typeLabel = "system"
-		typeColor = p.theme.System
 	case data.EventSubagentStart:
 		typeLabel = "agent+"
 		typeColor = p.theme.Subagent
@@ -144,19 +142,29 @@ func (p *ActivityPanel) renderEvent(e data.Event, width int) string {
 
 	labelStyle := lipgloss.NewStyle().Foreground(typeColor)
 
-	sessID := e.SessionID
-	if len(sessID) > 6 {
-		sessID = sessID[:6]
+	// Build prefix: include session ID only with multiple sessions
+	var prefix string
+	var prefixLen int
+	if p.sessionCount > 1 {
+		sessID := e.SessionID
+		if len(sessID) > 6 {
+			sessID = sessID[:6]
+		}
+		prefix = fmt.Sprintf("%s %s %s",
+			tsStyle.Render(ts), tsStyle.Render(sessID), labelStyle.Render(typeLabel))
+		prefixLen = 8 + 1 + 6 + 1 + len(typeLabel) // ts + sp + sess + sp + label
+	} else {
+		prefix = fmt.Sprintf("%s %s",
+			tsStyle.Render(ts), labelStyle.Render(typeLabel))
+		prefixLen = 8 + 1 + len(typeLabel) // ts + sp + label
 	}
 
-	prefix := fmt.Sprintf("%s %s %-8s",
-		tsStyle.Render(ts), tsStyle.Render(sessID), labelStyle.Render(typeLabel))
-
-	detail := e.Text
-	if e.ToolInput != "" && detail == "" {
-		detail = e.ToolInput
+	// Prefer tool input (file path, command) as the detail
+	detail := e.ToolInput
+	if detail == "" {
+		detail = e.Text
 	}
-	maxDetail := width - 28
+	maxDetail := width - prefixLen - 1
 	if maxDetail > 0 && len(detail) > maxDetail {
 		detail = detail[:maxDetail-3] + "..."
 	}
