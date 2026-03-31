@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/pattynextdoor/toph/internal/data"
@@ -132,6 +133,12 @@ func (s *JSONLSource) watchProjectDir(projectPath string) {
 
 // backfill reads the last ~200 lines from every existing .jsonl file and emits
 // events. This provides immediate dashboard content on startup.
+// backfillThreshold defines how recently a JSONL file must have been modified
+// to warrant backfilling its contents. Older files just get their offset
+// recorded so we can detect new writes, but we don't flood the dashboard with
+// historical events.
+const backfillThreshold = 10 * time.Minute
+
 func (s *JSONLSource) backfill(events chan<- data.Event) {
 	matches, err := filepath.Glob(filepath.Join(s.baseDir, "*", "*.jsonl"))
 	if err != nil {
@@ -145,8 +152,19 @@ func (s *JSONLSource) backfill(events chan<- data.Event) {
 	}
 	matches = append(matches, subMatches...)
 
+	cutoff := time.Now().Add(-backfillThreshold)
 	for _, path := range matches {
-		s.readTail(path, 200, events)
+		info, err := os.Stat(path)
+		if err != nil {
+			continue
+		}
+		if info.ModTime().After(cutoff) {
+			// Recently active file: backfill last 200 lines.
+			s.readTail(path, 200, events)
+		} else {
+			// Old file: just record offset so we catch future writes.
+			s.recordOffset(path, info.Size())
+		}
 	}
 }
 
@@ -185,6 +203,14 @@ func (s *JSONLSource) readTail(path string, n int, events chan<- data.Event) {
 			events <- ev
 		}
 	}
+}
+
+// recordOffset records a file's current size as the read offset without
+// emitting any events. Used for old files that we don't want to backfill.
+func (s *JSONLSource) recordOffset(path string, size int64) {
+	s.mu.Lock()
+	s.offsets[path] = size
+	s.mu.Unlock()
 }
 
 // readNewLines reads any bytes appended to a JSONL file since the last read,
