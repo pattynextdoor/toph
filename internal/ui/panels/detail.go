@@ -84,52 +84,59 @@ func (p *DetailPanel) Render(session *data.Session, width, height int) string {
 	}
 	lines = append(lines, lipgloss.NewStyle().Foreground(statusColor).Render(statusIcon))
 
+	// Key-value rows with consistent 5-char label column
+	label := func(l string) string { return dimStyle.Render(fmt.Sprintf("%-5s", l)) }
+
 	// Working directory
-	cwd := session.CWD
-	if cwd != "" {
-		cwd = shortenPath(cwd, innerW-5)
-		lines = append(lines, dimStyle.Render("dir ")+valStyle.Render(cwd))
+	if session.CWD != "" {
+		lines = append(lines, label("dir")+valStyle.Render(shortenPath(session.CWD, innerW-5)))
 	}
 
-	// Git branch
-	if session.GitBranch != "" {
-		lines = append(lines, dimStyle.Render("git ")+valStyle.Render(session.GitBranch))
-	}
-
-	// Model — shorten known claude- prefix when space is tight
-	if session.Model != "" {
+	// Git branch + model on one line if both present
+	if session.GitBranch != "" && session.Model != "" {
 		model := shortenModel(session.Model, innerW)
-		lines = append(lines, dimStyle.Render("mod ")+lipgloss.NewStyle().Foreground(p.theme.Subagent).Render(model))
+		lines = append(lines, label("git")+valStyle.Render(session.GitBranch)+
+			dimStyle.Render("  ")+lipgloss.NewStyle().Foreground(p.theme.Subagent).Render(model))
+	} else {
+		if session.GitBranch != "" {
+			lines = append(lines, label("git")+valStyle.Render(session.GitBranch))
+		}
+		if session.Model != "" {
+			lines = append(lines, label("mod")+lipgloss.NewStyle().Foreground(p.theme.Subagent).Render(shortenModel(session.Model, innerW)))
+		}
 	}
 
-	// Duration + last tool on one line when tight
+	// Age + last tool
 	age := formatDuration(time.Since(session.StartedAt))
 	if session.LastToolName != "" {
-		lines = append(lines, dimStyle.Render("age ")+dimStyle.Render(age)+
-			dimStyle.Render("  last ")+lipgloss.NewStyle().Foreground(p.theme.ToolUse).Render(session.LastToolName))
+		lines = append(lines, label("age")+dimStyle.Render(age)+
+			dimStyle.Render("  ")+label("last")+lipgloss.NewStyle().Foreground(p.theme.ToolUse).Render(session.LastToolName))
 	} else {
-		lines = append(lines, dimStyle.Render("age ")+dimStyle.Render(age))
+		lines = append(lines, label("age")+dimStyle.Render(age))
 	}
 
-	// Token summary
+	// Tokens + context bar on one line
 	totalIn := session.TotalInputTokens
 	totalOut := session.TotalOutputTokens
 	if totalIn > 0 || totalOut > 0 {
-		lines = append(lines, dimStyle.Render("tok ")+dimStyle.Render(fmt.Sprintf("%s in / %s out",
+		lines = append(lines, label("tok")+dimStyle.Render(fmt.Sprintf("%s in / %s out",
 			formatTokens(totalIn), formatTokens(totalOut))))
 
-		// Context window fill meter
 		ctxMax := data.ContextWindowSize(session.Model)
-		barWidth := innerW - 6 // room for "ctx " prefix and " XX%" suffix
-		if barWidth < 4 {
-			barWidth = 4
+		pct := float64(totalIn+totalOut) / float64(ctxMax) * 100
+		if pct > 100 {
+			pct = 100
+		}
+		// Compact bar: "ctx ===----  8%" using safe ASCII chars
+		barWidth := innerW / 2
+		if barWidth < 6 {
+			barWidth = 6
 		}
 		lines = append(lines, renderContextBar(totalIn+totalOut, ctxMax, barWidth, p.theme))
 	}
 
-	// Subagent tree
+	// Subagent list — no header, just inline
 	if len(session.Subagents) > 0 {
-		lines = append(lines, dimStyle.Render("agents"))
 		maxAgents := innerH - len(lines)
 		if maxAgents > len(session.Subagents) {
 			maxAgents = len(session.Subagents)
@@ -163,23 +170,15 @@ func (p *DetailPanel) Render(session *data.Session, width, height int) string {
 				agentType = "agent"
 			}
 
-			typeStr := lipgloss.NewStyle().Foreground(p.theme.Subagent).Render(agentType)
 			iconStr := lipgloss.NewStyle().Foreground(iconColor).Render(icon)
+			typeStr := lipgloss.NewStyle().Foreground(p.theme.Subagent).Render(agentType)
 			desc := sa.Description
-			// Truncate description to fit: account for "  X Y Type: " prefix (~12 chars + type len)
-			maxDesc := innerW - 8 - len(agentType)
-			if maxDesc < 0 {
-				maxDesc = 0
+			maxDesc := innerW - 7 - len(agentType)
+			if maxDesc > 0 && len(desc) > maxDesc {
+				desc = desc[:maxDesc-3] + "..."
 			}
-			if len(desc) > maxDesc {
-				if maxDesc > 3 {
-					desc = desc[:maxDesc-3] + "..."
-				} else {
-					desc = ""
-				}
-			}
-			line := dimStyle.Render("  "+connector+" ") + iconStr + " " + typeStr
-			if desc != "" {
+			line := dimStyle.Render(" "+connector+" ") + iconStr + " " + typeStr
+			if desc != "" && maxDesc > 0 {
 				line += dimStyle.Render(": "+desc)
 			}
 			lines = append(lines, line)
@@ -218,7 +217,7 @@ func shortenPath(p string, maxLen int) string {
 }
 
 // renderContextBar builds a colored progress bar showing context window usage.
-// Format: `ctx [████████░░░░] 42%`
+// Format: `ctx [====----] 8%`
 // Color transitions: green (0-50%), amber (50-80%), red (80-100%).
 func renderContextBar(filled, total int, barWidth int, theme *ui.Theme) string {
 	if total <= 0 {
@@ -235,7 +234,6 @@ func renderContextBar(filled, total int, barWidth int, theme *ui.Theme) string {
 	}
 	emptyCells := barWidth - filledCells
 
-	// Pick color based on fill level
 	var barColor color.Color
 	switch {
 	case pct >= 80:
@@ -250,10 +248,10 @@ func renderContextBar(filled, total int, barWidth int, theme *ui.Theme) string {
 	emptyStyle := lipgloss.NewStyle().Foreground(theme.TextDim)
 	dimStyle := lipgloss.NewStyle().Foreground(theme.TextDim)
 
-	bar := filledStyle.Render(strings.Repeat("█", filledCells)) +
-		emptyStyle.Render(strings.Repeat("░", emptyCells))
+	bar := filledStyle.Render(strings.Repeat("=", filledCells)) +
+		emptyStyle.Render(strings.Repeat("-", emptyCells))
 
-	return dimStyle.Render("ctx ") + bar + dimStyle.Render(fmt.Sprintf(" %2d%%", int(pct)))
+	return dimStyle.Render("ctx ") + bar + dimStyle.Render(fmt.Sprintf(" %d%%", int(pct)))
 }
 
 // formatTokens formats a token count in a compact way (e.g., "142K", "1.2M").
