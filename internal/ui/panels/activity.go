@@ -70,7 +70,7 @@ func (p *ActivityPanel) Render(events []data.Event, width, height int) string {
 	innerW := width - 4
 	innerH := height - 2
 	if innerW < 1 || innerH < 1 {
-		return style.Width(width - 2).Height(height - 2).Render("")
+		return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render("")
 	}
 
 	title := p.theme.Title.Render("ACTIVITY")
@@ -107,7 +107,7 @@ func (p *ActivityPanel) Render(events []data.Event, width, height int) string {
 	}
 
 	content := strings.Join(lines, "\n")
-	return style.Width(width - 2).Height(height - 2).Render(content)
+	return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render(content)
 }
 
 // renderEvent formats a single event line. In single-session mode the format
@@ -122,7 +122,7 @@ func (p *ActivityPanel) renderEvent(e data.Event, width int) string {
 
 	switch e.Type {
 	case data.EventToolUse:
-		typeLabel = e.ToolName
+		typeLabel = shortenToolName(e.ToolName)
 		typeColor = p.theme.ToolUse
 	case data.EventToolResult:
 		typeLabel = "result"
@@ -200,4 +200,19 @@ func shortenDetail(s string) string {
 		}
 	}
 	return s
+}
+
+// shortenToolName abbreviates long MCP tool names like
+// "mcp__playwright__browser_take_screenshot" to "take_screenshot".
+// Short built-in names (Read, Bash, Edit, etc.) pass through unchanged.
+func shortenToolName(name string) string {
+	if len(name) <= 12 {
+		return name
+	}
+	// MCP tools use double-underscore separators; take the last segment
+	if idx := strings.LastIndex(name, "__"); idx >= 0 {
+		return name[idx+2:]
+	}
+	// Fallback: just truncate
+	return name[:12]
 }

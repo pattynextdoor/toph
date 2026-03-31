@@ -36,7 +36,7 @@ func (p *DetailPanel) Render(session *data.Session, width, height int) string {
 	innerW := width - 4
 	innerH := height - 2
 	if innerW < 1 || innerH < 1 {
-		return style.Width(width - 2).Height(height - 2).Render("")
+		return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render("")
 	}
 
 	title := p.theme.Title.Render("DETAIL")
@@ -45,7 +45,7 @@ func (p *DetailPanel) Render(session *data.Session, width, height int) string {
 
 	if session == nil {
 		lines = append(lines, lipgloss.NewStyle().Foreground(p.theme.Idle).Render("Select a session"))
-		return style.Width(width - 2).Height(height - 2).Render(strings.Join(lines, "\n"))
+		return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render(strings.Join(lines, "\n"))
 	}
 
 	session.RLock()
@@ -113,7 +113,7 @@ func (p *DetailPanel) Render(session *data.Session, width, height int) string {
 		lines = lines[:innerH]
 	}
 
-	return style.Width(width - 2).Height(height - 2).Render(strings.Join(lines, "\n"))
+	return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render(strings.Join(lines, "\n"))
 }
 
 // shortenModel strips the "claude-" prefix from model names when space is tight.

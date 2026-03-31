@@ -50,7 +50,7 @@ func (p *SessionsPanel) Render(sessions []*data.Session, width, height int) stri
 	innerW := width - 4
 	innerH := height - 2
 	if innerW < 1 || innerH < 1 {
-		return style.Width(width - 2).Height(height - 2).Render("")
+		return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render("")
 	}
 
 	title := p.theme.Title.Render("SESSIONS")
@@ -69,7 +69,7 @@ func (p *SessionsPanel) Render(sessions []*data.Session, width, height int) stri
 	}
 
 	content := strings.Join(lines, "\n")
-	return style.Width(width - 2).Height(height - 2).Render(content)
+	return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render(content)
 }
 
 // renderSessionRow formats a single session as: icon project branch age

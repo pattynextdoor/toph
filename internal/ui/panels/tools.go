@@ -35,7 +35,7 @@ func (p *ToolsPanel) Render(toolCounts map[string]int, width, height int) string
 	innerW := width - 4
 	innerH := height - 2
 	if innerW < 1 || innerH < 1 {
-		return style.Width(width - 2).Height(height - 2).Render("")
+		return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render("")
 	}
 
 	title := p.theme.Title.Render("TOOLS")
@@ -44,7 +44,7 @@ func (p *ToolsPanel) Render(toolCounts map[string]int, width, height int) string
 
 	if len(toolCounts) == 0 {
 		lines = append(lines, lipgloss.NewStyle().Foreground(p.theme.Idle).Render("No tool calls yet"))
-		return style.Width(width - 2).Height(height - 2).Render(strings.Join(lines, "\n"))
+		return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render(strings.Join(lines, "\n"))
 	}
 
 	type toolEntry struct {
@@ -103,5 +103,5 @@ func (p *ToolsPanel) Render(toolCounts map[string]int, width, height int) string
 		lines = append(lines, label+lipgloss.NewStyle().Foreground(p.theme.ToolUse).Render(bar))
 	}
 
-	return style.Width(width - 2).Height(height - 2).Render(strings.Join(lines, "\n"))
+	return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render(strings.Join(lines, "\n"))
 }

@@ -48,7 +48,7 @@ func (p *MetricsPanel) Render(sessions []*data.Session, width, height int) strin
 
 	innerH := height - 2
 	if innerH < 1 {
-		return style.Width(width - 2).Height(height - 2).Render("")
+		return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render("")
 	}
 
 	title := p.theme.Title.Render("METRICS")
@@ -59,7 +59,7 @@ func (p *MetricsPanel) Render(sessions []*data.Session, width, height int) strin
 
 	if len(sessions) == 0 {
 		lines = append(lines, dimStyle.Render("No sessions"))
-		return style.Width(width - 2).Height(height - 2).Render(strings.Join(lines, "\n"))
+		return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render(strings.Join(lines, "\n"))
 	}
 
 	// Aggregate across all sessions
@@ -101,7 +101,7 @@ func (p *MetricsPanel) Render(sessions []*data.Session, width, height int) strin
 		lines = lines[:innerH]
 	}
 
-	return style.Width(width - 2).Height(height - 2).Render(strings.Join(lines, "\n"))
+	return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render(strings.Join(lines, "\n"))
 }
 
 func estimateCost(model string, input, output, cacheRead, cacheWrite int) float64 {
