@@ -48,6 +48,9 @@ type Model struct {
 	height        int
 	ready         bool
 	pendingEvents []data.Event
+
+	filtering  bool
+	filterText string
 }
 
 // New creates a root Model wired to the given Manager. All panels start
@@ -90,6 +93,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.manager.HandleEvent(e)
 		}
 		m.pendingEvents = m.pendingEvents[:0]
+
+		// Check for sessions that may have transitioned to waiting state
+		// (e.g., tool_use proposed but no follow-up within the timeout).
+		m.manager.CheckSessionStates()
+
 		return m, tick()
 
 	case EventMsg:

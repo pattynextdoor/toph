@@ -140,6 +140,49 @@ func sortSessionsByActionability(sessions []*Session) {
 	})
 }
 
+// CheckSessionStates runs periodic state checks on all sessions, such as
+// detecting permission-waiting timeouts. Called once per tick from the model.
+func (m *Manager) CheckSessionStates() {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, s := range m.sessions {
+		s.CheckWaiting()
+	}
+}
+
+// SetSubagentMeta attaches metadata (type and description) from a .meta.json
+// file to the appropriate subagent within a session. If the subagent hasn't
+// been seen yet via events, it creates a placeholder entry.
+func (m *Manager) SetSubagentMeta(sessionID, agentID, agentType, description string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	sess, ok := m.sessions[sessionID]
+	if !ok {
+		return
+	}
+
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+
+	for _, sa := range sess.Subagents {
+		if sa.ID == agentID {
+			sa.Type = agentType
+			sa.Description = description
+			return
+		}
+	}
+	// Subagent not seen yet via events — create a placeholder.
+	sess.Subagents = append(sess.Subagents, &Subagent{
+		ID:          agentID,
+		Type:        agentType,
+		Description: description,
+		Status:      StatusActive,
+		StartedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	})
+}
+
 // ToolCounts aggregates tool usage counts across all sessions.
 func (m *Manager) ToolCounts() map[string]int {
 	m.mu.RLock()

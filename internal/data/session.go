@@ -76,8 +76,11 @@ type Session struct {
 
 	Subagents []*Subagent
 
-	LastToolName string
-	LastText     string
+	LastToolName   string
+	LastText       string
+	LastStopReason string
+	LastHadToolUse bool      // true if the last assistant message contained tool_use blocks
+	LastEventAt    time.Time // wall-clock time when the last event arrived (for timeout detection)
 }
 
 // Subagent represents a child agent spawned by a session.
@@ -136,13 +139,33 @@ func (s *Session) UpdateFromEvent(e Event) {
 		s.GitBranch = e.GitBranch
 	}
 
+	s.LastEventAt = time.Now()
+
+	// Track subagent state when the event belongs to a child agent.
+	if e.AgentID != "" {
+		sa := s.getOrCreateSubagent(e.AgentID)
+		sa.UpdatedAt = e.Timestamp
+		switch e.Type {
+		case EventSubagentStart:
+			sa.Status = StatusActive
+		case EventSubagentEnd:
+			sa.Status = StatusIdle
+		case EventToolUse, EventAssistantText, EventUserMessage:
+			sa.Status = StatusActive
+		case EventError:
+			sa.Status = StatusError
+		}
+	}
+
 	switch e.Type {
 	case EventToolUse:
 		s.Status = StatusActive
 		s.LastToolName = e.ToolName
+		s.LastHadToolUse = true
 		s.ToolCounts[e.ToolName]++
 	case EventAssistantText:
 		s.Status = StatusActive
+		s.LastStopReason = e.StopReason
 		s.TotalInputTokens += e.InputTokens
 		s.TotalOutputTokens += e.OutputTokens
 		s.TotalCacheRead += e.CacheReadInputTokens
@@ -152,7 +175,49 @@ func (s *Session) UpdateFromEvent(e Event) {
 		}
 	case EventUserMessage:
 		s.Status = StatusActive
+		s.LastHadToolUse = false
+		s.LastStopReason = ""
 	case EventError:
 		s.Status = StatusError
+	}
+}
+
+// getOrCreateSubagent finds an existing subagent by ID or creates a new one.
+// Must be called with s.mu held.
+func (s *Session) getOrCreateSubagent(agentID string) *Subagent {
+	for _, sa := range s.Subagents {
+		if sa.ID == agentID {
+			return sa
+		}
+	}
+	sa := &Subagent{
+		ID:        agentID,
+		Status:    StatusActive,
+		StartedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	s.Subagents = append(s.Subagents, sa)
+	return sa
+}
+
+// waitingTimeout is how long after the last event we wait before considering
+// an active session with pending tool use to be "waiting for permission."
+const waitingTimeout = 15 * time.Second
+
+// CheckWaiting transitions Status from Active to Waiting if the session looks
+// like it's blocked on user permission. The heuristic: the last assistant
+// message contained a tool_use block, but no follow-up event has arrived
+// within 15 seconds — Claude proposed a tool call and is sitting idle waiting
+// for the user to approve it. Call this periodically (e.g., on every tick).
+func (s *Session) CheckWaiting() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.Status != StatusActive {
+		return
+	}
+
+	if s.LastHadToolUse && !s.LastEventAt.IsZero() && time.Since(s.LastEventAt) > waitingTimeout {
+		s.Status = StatusWaiting
 	}
 }
