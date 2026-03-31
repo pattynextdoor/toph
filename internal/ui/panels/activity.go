@@ -2,7 +2,9 @@ package panels
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
+	"time"
 
 	"charm.land/lipgloss/v2"
 	"github.com/pattynextdoor/toph/internal/data"
@@ -140,6 +142,10 @@ func (p *ActivityPanel) renderEvent(e data.Event, width int) string {
 		typeLabel = e.Type.String()
 	}
 
+	// Age the color: fade to dim over 2 minutes
+	age := time.Since(e.Timestamp)
+	typeColor = ageColor(typeColor, age, p.theme)
+
 	labelStyle := lipgloss.NewStyle().Foreground(typeColor)
 
 	// Build prefix: include session ID only with multiple sessions
@@ -173,9 +179,33 @@ func (p *ActivityPanel) renderEvent(e data.Event, width int) string {
 		if len(detail) > remaining {
 			detail = detail[:remaining-3] + "..."
 		}
-		return prefix + " " + lipgloss.NewStyle().Foreground(p.theme.TextDim).Render(detail)
+		detailColor := ageColor(p.theme.TextDim, age, p.theme)
+		return prefix + " " + lipgloss.NewStyle().Foreground(detailColor).Render(detail)
 	}
 	return prefix
+}
+
+// ageColor fades a color toward TextDim based on event age.
+// Events < 5s old keep their original color.
+// Events > 2min old are fully dimmed.
+// In between, we step through discrete brightness levels.
+func ageColor(original color.Color, age time.Duration, theme *ui.Theme) color.Color {
+	if age < 5*time.Second {
+		return original
+	}
+	if age > 2*time.Minute {
+		return theme.TextDim
+	}
+	// Between 5s and 2min: step down in 3 bands.
+	if age < 30*time.Second {
+		return original // still pretty fresh
+	}
+	if age < 1*time.Minute {
+		// Slightly faded
+		return lipgloss.Color("#808080")
+	}
+	// 1-2 minutes: quite faded
+	return lipgloss.Color("#606060")
 }
 
 // shortenDetail trims verbose detail strings. For file paths it shows just
