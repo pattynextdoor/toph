@@ -2,6 +2,7 @@
 
 import { InstallCommand } from "@/components/install-command";
 import { TophDemo } from "@/components/toph-demo";
+import { SeismicBackground } from "@/components/seismic-background";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { AnimatedGridPattern } from "@/components/ui/animated-grid-pattern";
 import { BorderBeam } from "@/components/ui/border-beam";
@@ -49,14 +50,17 @@ export function Hero() {
 
       {/* Right Column */}
       <div className="relative flex items-center justify-center overflow-hidden border-l border-white/[0.04] bg-[#0d0d10] p-8 lg:p-12 min-h-[400px]">
-        {/* Animated grid background */}
+        {/* Seismic wave background */}
+        {!reducedMotion && <SeismicBackground />}
+
+        {/* Animated grid pattern (layered on top of seismic) */}
         {!reducedMotion && (
           <AnimatedGridPattern
             numSquares={30}
-            maxOpacity={0.15}
+            maxOpacity={0.1}
             duration={3}
             repeatDelay={1}
-            className="inset-0 h-full w-full opacity-35"
+            className="inset-0 h-full w-full opacity-20"
           />
         )}
 
