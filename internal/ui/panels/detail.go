@@ -117,6 +117,65 @@ func (p *DetailPanel) Render(session *data.Session, width, height int) string {
 		lines = append(lines, renderContextBar(totalIn+totalOut, ctxMax, barWidth, p.theme))
 	}
 
+	// Subagent tree
+	if len(session.Subagents) > 0 {
+		lines = append(lines, dimStyle.Render("agents"))
+		maxAgents := innerH - len(lines)
+		if maxAgents > len(session.Subagents) {
+			maxAgents = len(session.Subagents)
+		}
+		for i := 0; i < maxAgents; i++ {
+			sa := session.Subagents[i]
+			connector := "├"
+			if i == maxAgents-1 {
+				connector = "└"
+			}
+
+			var icon string
+			var iconColor color.Color
+			switch sa.Status {
+			case data.StatusActive:
+				icon = "●"
+				iconColor = p.theme.Active
+			case data.StatusIdle:
+				icon = "○"
+				iconColor = p.theme.Idle
+			case data.StatusError:
+				icon = "✕"
+				iconColor = p.theme.Error
+			default:
+				icon = "○"
+				iconColor = p.theme.Idle
+			}
+
+			agentType := sa.Type
+			if agentType == "" {
+				agentType = "agent"
+			}
+
+			typeStr := lipgloss.NewStyle().Foreground(p.theme.Subagent).Render(agentType)
+			iconStr := lipgloss.NewStyle().Foreground(iconColor).Render(icon)
+			desc := sa.Description
+			// Truncate description to fit: account for "  X Y Type: " prefix (~12 chars + type len)
+			maxDesc := innerW - 8 - len(agentType)
+			if maxDesc < 0 {
+				maxDesc = 0
+			}
+			if len(desc) > maxDesc {
+				if maxDesc > 3 {
+					desc = desc[:maxDesc-3] + "..."
+				} else {
+					desc = ""
+				}
+			}
+			line := dimStyle.Render("  "+connector+" ") + iconStr + " " + typeStr
+			if desc != "" {
+				line += dimStyle.Render(": "+desc)
+			}
+			lines = append(lines, line)
+		}
+	}
+
 	// Truncate to fit
 	if len(lines) > innerH {
 		lines = lines[:innerH]

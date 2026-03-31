@@ -58,6 +58,7 @@ func main() {
 
 	manager := data.NewManager()
 	jsonlSource := source.NewJSONLSource(projectsDir)
+	jsonlSource.SetManager(manager)
 	eventCh := make(chan data.Event, 256)
 
 	// Start JSONL source in background goroutine

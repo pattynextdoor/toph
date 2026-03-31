@@ -3,6 +3,7 @@ package source
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"os"
@@ -24,6 +25,7 @@ type JSONLSource struct {
 	watcher *fsnotify.Watcher
 	mu      sync.Mutex
 	offsets map[string]int64 // tracks read position per file
+	manager *data.Manager    // optional, for setting subagent metadata
 }
 
 // NewJSONLSource creates a new JSONL source watching the given base directory.
@@ -34,6 +36,12 @@ func NewJSONLSource(baseDir string) *JSONLSource {
 		baseDir: baseDir,
 		offsets: make(map[string]int64),
 	}
+}
+
+// SetManager provides a Manager reference for setting subagent metadata
+// parsed from .meta.json files. Optional — if not set, metadata is skipped.
+func (s *JSONLSource) SetManager(m *data.Manager) {
+	s.manager = m
 }
 
 func (s *JSONLSource) Name() string { return "jsonl" }
@@ -165,6 +173,54 @@ func (s *JSONLSource) backfill(events chan<- data.Event) {
 			// Old file: just record offset so we catch future writes.
 			s.recordOffset(path, info.Size())
 		}
+	}
+
+	// Load subagent metadata from .meta.json files.
+	s.loadSubagentMeta()
+}
+
+// subagentMeta represents the JSON structure of an agent-{id}.meta.json file.
+type subagentMeta struct {
+	AgentType   string `json:"agentType"`
+	Description string `json:"description"`
+}
+
+// loadSubagentMeta finds all .meta.json files in subagent directories and
+// applies their metadata (type, description) to the corresponding subagents
+// via the Manager.
+func (s *JSONLSource) loadSubagentMeta() {
+	if s.manager == nil {
+		return
+	}
+
+	metaFiles, err := filepath.Glob(filepath.Join(s.baseDir, "*", "*", "subagents", "*.meta.json"))
+	if err != nil {
+		slog.Debug("meta.json glob failed", "error", err)
+		return
+	}
+
+	for _, path := range metaFiles {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			slog.Debug("failed to read meta.json", "path", path, "error", err)
+			continue
+		}
+		var meta subagentMeta
+		if err := json.Unmarshal(raw, &meta); err != nil {
+			slog.Debug("failed to parse meta.json", "path", path, "error", err)
+			continue
+		}
+
+		// Extract agentID and sessionID from path.
+		// Path: {baseDir}/{project}/{sessionId}/subagents/agent-{agentId}.meta.json
+		base := filepath.Base(path)
+		agentID := strings.TrimSuffix(base, ".meta.json")
+		agentID = strings.TrimPrefix(agentID, "agent-")
+
+		// Session ID is two levels up from the file.
+		sessionID := filepath.Base(filepath.Dir(filepath.Dir(path)))
+
+		s.manager.SetSubagentMeta(sessionID, agentID, meta.AgentType, meta.Description)
 	}
 }
 
