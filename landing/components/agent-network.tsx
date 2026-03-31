@@ -2,7 +2,7 @@
 
 import { useRef, useMemo } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, Float } from "@react-three/drei";
+import { OrbitControls, Float, Html } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import * as THREE from "three";
 
@@ -11,8 +11,8 @@ import * as THREE from "three";
 // =============================================================================
 const PARTICLE_COUNT = 800;
 const EDGE_PARTICLE_COUNT = 120;
-const NODE_BASE_RADIUS = 0.25;
-const NODE_GLOW_RADIUS = 0.6;
+const NODE_BASE_RADIUS = 0.12;
+const NODE_GLOW_RADIUS = 0.28;
 const CAMERA_DISTANCE = 10;
 const CAMERA_FOV = 40;
 const AUTO_ROTATE_SPEED = 0.12;
@@ -26,11 +26,11 @@ const BG_COLOR = "#09090b";
 
 // Node data: spread further apart for visual breathing room
 const NODES = [
-  { pos: [0, 0.3, 0] as [number, number, number], color: "#87D787", label: "api-server", size: 1.3 },
-  { pos: [3.8, 1.8, -1.5] as [number, number, number], color: "#FFD787", label: "auth-flow", size: 1.0 },
-  { pos: [-3.5, 1.2, 2.0] as [number, number, number], color: "#6C6C6C", label: "docs", size: 0.75 },
-  { pos: [2.5, -2.2, 2.5] as [number, number, number], color: "#87D7D7", label: "tests", size: 0.95 },
-  { pos: [-2.5, -1.8, -2.8] as [number, number, number], color: "#D7AFFF", label: "deploy", size: 0.9 },
+  { pos: [0, 0.3, 0] as [number, number, number], color: "#87D787", label: "api-server", size: 1.3, status: "coding", detail: "14.8K tokens", icon: "●" },
+  { pos: [3.8, 1.8, -1.5] as [number, number, number], color: "#FFD787", label: "auth-flow", size: 1.0, status: "waiting", detail: "permission", icon: "◐" },
+  { pos: [-3.5, 1.2, 2.0] as [number, number, number], color: "#6C6C6C", label: "docs", size: 0.75, status: "idle", detail: "2m ago", icon: "○" },
+  { pos: [2.5, -2.2, 2.5] as [number, number, number], color: "#87D7D7", label: "tests", size: 0.95, status: "running", detail: "npm test", icon: "●" },
+  { pos: [-2.5, -1.8, -2.8] as [number, number, number], color: "#D7AFFF", label: "deploy", size: 0.9, status: "subagent", detail: "3 agents", icon: "◉" },
 ];
 
 // Edges between nodes (index pairs)
@@ -97,13 +97,18 @@ function AmbientParticles() {
 // =============================================================================
 // Glowing Node — core sphere + outer glow aura
 // =============================================================================
-function GlowNode({ position, color, size = 1 }: { position: [number, number, number]; color: string; size?: number }) {
+function GlowNode({
+  position, color, size = 1, label, status, detail, icon,
+}: {
+  position: [number, number, number]; color: string; size?: number;
+  label: string; status: string; detail: string; icon: string;
+}) {
   const meshRef = useRef<THREE.Mesh>(null);
 
   useFrame(({ clock }) => {
     if (!meshRef.current) return;
     const t = clock.getElapsedTime();
-    meshRef.current.scale.setScalar(size * (1 + Math.sin(t * 2 + position[0]) * 0.08));
+    meshRef.current.scale.setScalar(size * (1 + Math.sin(t * 2 + position[0]) * 0.06));
   });
 
   return (
@@ -114,28 +119,45 @@ function GlowNode({ position, color, size = 1 }: { position: [number, number, nu
           <sphereGeometry args={[NODE_BASE_RADIUS * size, 32, 32]} />
           <meshBasicMaterial color={color} />
         </mesh>
-        {/* Glow aura */}
+        {/* Glow aura — tighter */}
         <mesh>
           <sphereGeometry args={[NODE_GLOW_RADIUS * size, 32, 32]} />
           <meshBasicMaterial
             color={color}
             transparent
-            opacity={0.07}
+            opacity={0.06}
             depthWrite={false}
             blending={THREE.AdditiveBlending}
           />
         </mesh>
-        {/* Outer haze */}
+        {/* Outer haze — tighter */}
         <mesh>
-          <sphereGeometry args={[NODE_GLOW_RADIUS * size * 2.2, 16, 16]} />
+          <sphereGeometry args={[NODE_GLOW_RADIUS * size * 1.5, 16, 16]} />
           <meshBasicMaterial
             color={color}
             transparent
-            opacity={0.025}
+            opacity={0.02}
             depthWrite={false}
             blending={THREE.AdditiveBlending}
           />
         </mesh>
+        {/* HTML Label */}
+        <Html
+          position={[0, -(NODE_BASE_RADIUS * size + 0.5), 0]}
+          center
+          distanceFactor={10}
+          style={{ pointerEvents: "none", userSelect: "none" }}
+        >
+          <div className="flex flex-col items-center gap-0.5 whitespace-nowrap">
+            <div className="flex items-center gap-1.5 font-mono text-[11px]">
+              <span style={{ color }}>{icon}</span>
+              <span className="text-zinc-200 font-medium">{label}</span>
+            </div>
+            <div className="font-mono text-[9px] text-zinc-500">
+              {status} · {detail}
+            </div>
+          </div>
+        </Html>
       </group>
     </Float>
   );
@@ -235,7 +257,16 @@ function Scene() {
 
       {/* Nodes */}
       {NODES.map((node, i) => (
-        <GlowNode key={i} position={node.pos} color={node.color} size={node.size} />
+        <GlowNode
+          key={i}
+          position={node.pos}
+          color={node.color}
+          size={node.size}
+          label={node.label}
+          status={node.status}
+          detail={node.detail}
+          icon={node.icon}
+        />
       ))}
 
       {/* Edges */}
