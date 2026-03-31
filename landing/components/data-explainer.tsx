@@ -11,8 +11,8 @@ const sources = [
   {
     title: "Hooks",
     description:
-      "Claude Code's hook system fires events for tool use, permissions, errors, and session lifecycle. Opt-in for richer real-time data.",
-    detail: "PreToolUse \u00b7 PostToolUse \u00b7 Stop",
+      "9 lifecycle events: intercept tool calls, block early stops, capture prompts, and track session state. Opt-in for richer real-time data.",
+    detail: "PreToolUse \u00b7 PostToolUse \u00b7 Stop \u00b7 SubagentStop \u00b7 SessionStart \u00b7 SessionEnd \u00b7 UserPromptSubmit \u00b7 PreCompact \u00b7 Notification",
     icon: Webhook,
   },
   {
