@@ -35,31 +35,11 @@
 **Why:** Instant readability boost. The data already exists in every JSONL record.
 **Effort:** S | **Priority:** P2 | **Depends on:** JSONL parser
 
-### Desktop notification on permission-wait
-**What:** Fire macOS notification (`osascript`) when a session enters 'waiting for permission' state.
-**Why:** #1 pain point for multi-session users — permission prompts get buried in other terminals.
-**Effort:** S | **Priority:** P2 | **Depends on:** Session state machine
+## Completed
 
-### Inline sparklines per session
-**What:** 8-char braille sparkline next to each session showing token burn pattern over last 10 minutes.
-**Why:** Turns session list from a status board into a heartbeat monitor. Screenshot gold.
-**Requires:** Per-session token history ring buffer (60 samples at 10s intervals).
-**Effort:** M | **Priority:** P2 | **Depends on:** Metrics calculation
+- **Desktop notification on permission-wait** (P2) — `internal/notify/notify.go`
+- **Inline sparklines per session** (P2) — `internal/ui/panels/sessions.go`
+- **Activity feed color aging** (P2) — `internal/ui/panels/activity.go`
+- **File conflict heatmap** (P2) — `internal/data/conflicts.go` + activity panel
+- **toph export --json** (P3) — `internal/export/export.go`
 
-### Activity feed color aging
-**What:** Events fade from bright to dim as they age. 3s ago = bright cyan, 5m ago = dim gray.
-**Why:** Eye naturally tracks what's fresh. Lip Gloss color interpolation handles this.
-**Effort:** S | **Priority:** P2 | **Depends on:** Activity feed panel
-
-### File conflict heatmap
-**What:** Highlight files touched by 2+ agents simultaneously in red in the activity feed.
-**Why:** Nobody else does this. Multi-agent is new and file conflicts are a real pain. Differentiating feature.
-**Requires:** Track file paths per session, cross-reference within 5-min window.
-**Effort:** M | **Priority:** P2 | **Depends on:** Multi-session event tracking
-
-## P3 — Phase 3+ features
-
-### toph export --json
-**What:** Dump current dashboard state as JSON for scripting/piping to jq.
-**Why:** Enables composability with Unix ecosystem. `toph export | jq .sessions[].cost` for CI/CD cost tracking.
-**Effort:** S | **Priority:** P3 | **Depends on:** Stable data model
