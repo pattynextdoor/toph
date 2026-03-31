@@ -204,12 +204,17 @@ func (s *Session) getOrCreateSubagent(agentID string) *Subagent {
 // an active session with pending tool use to be "waiting for permission."
 const waitingTimeout = 15 * time.Second
 
-// CheckWaiting transitions Status from Active to Waiting if the session looks
-// like it's blocked on user permission. The heuristic: the last assistant
-// message contained a tool_use block, but no follow-up event has arrived
-// within 15 seconds — Claude proposed a tool call and is sitting idle waiting
-// for the user to approve it. Call this periodically (e.g., on every tick).
-func (s *Session) CheckWaiting() {
+// idleTimeout is how long a session can go without any events before it
+// transitions from Active to Idle.
+const idleTimeout = 5 * time.Minute
+
+// CheckStale updates session status based on inactivity:
+//   - Active sessions with a pending tool_use and no events for >15s → Waiting
+//   - Active sessions with no events for >5 minutes → Idle
+//
+// The waiting check fires first because it's more specific (the user likely
+// needs to approve a tool call). Call this periodically (e.g., on every tick).
+func (s *Session) CheckStale() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -217,7 +222,20 @@ func (s *Session) CheckWaiting() {
 		return
 	}
 
-	if s.LastHadToolUse && !s.LastEventAt.IsZero() && time.Since(s.LastEventAt) > waitingTimeout {
+	if s.LastEventAt.IsZero() {
+		return
+	}
+
+	elapsed := time.Since(s.LastEventAt)
+
+	// Check for permission-waiting first (more specific).
+	if s.LastHadToolUse && elapsed > waitingTimeout {
 		s.Status = StatusWaiting
+		return
+	}
+
+	// Check for idle (general inactivity).
+	if elapsed > idleTimeout {
+		s.Status = StatusIdle
 	}
 }

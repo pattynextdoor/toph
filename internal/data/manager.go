@@ -141,12 +141,13 @@ func sortSessionsByActionability(sessions []*Session) {
 }
 
 // CheckSessionStates runs periodic state checks on all sessions, such as
-// detecting permission-waiting timeouts. Called once per tick from the model.
+// detecting permission-waiting timeouts and idle sessions. Called once per
+// tick from the model.
 func (m *Manager) CheckSessionStates() {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	for _, s := range m.sessions {
-		s.CheckWaiting()
+		s.CheckStale()
 	}
 }
 
