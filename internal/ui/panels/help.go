@@ -39,7 +39,7 @@ var helpBindings = []keybinding{
 	{"tab / shift+tab", "Cycle panel focus"},
 	{"j / k / up / down", "Navigate within panel"},
 	{"1-5", "Jump to panel"},
-	{"enter", "Select session"},
+	{"enter", "View session detail"},
 	{"G / g", "Activity feed bottom/top"},
 	{"/", "Filter"},
 	{"esc", "Clear filter / dismiss"},
