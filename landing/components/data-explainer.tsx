@@ -23,7 +23,7 @@ export function DataExplainer() {
   return (
     <section className="px-6 lg:px-16 py-24 border-t border-zinc-800/50">
       <div className="max-w-4xl mx-auto">
-        <h2 className="font-sans text-3xl font-semibold text-zinc-50 text-center mb-4">
+        <h2 className="font-heading text-3xl font-bold text-zinc-50 text-center mb-4">
           Under the hood
         </h2>
         <p className="text-center text-zinc-500 text-base max-w-2xl mx-auto mb-16">

@@ -26,7 +26,7 @@ export function Hero() {
         </nav>
 
         {/* Headline */}
-        <h1 className="font-sans text-5xl lg:text-[64px] font-semibold text-zinc-50 leading-[1.05] tracking-[-0.03em]">
+        <h1 className="font-heading text-5xl lg:text-[64px] font-bold text-zinc-50 leading-[1.05] tracking-[-0.03em]">
           <span className="block">btop</span>
           <span className="block text-zinc-400">for AI agents.</span>
         </h1>

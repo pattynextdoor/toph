@@ -2,7 +2,7 @@ export function OpenSource() {
   return (
     <section className="px-6 lg:px-16 py-24 border-t border-zinc-800/50">
       <div className="max-w-2xl mx-auto text-center">
-        <h2 className="font-sans text-3xl font-semibold text-zinc-50 mb-4">
+        <h2 className="font-heading text-3xl font-bold text-zinc-50 mb-4">
           Open source
         </h2>
         <p className="text-base text-zinc-500 leading-relaxed">

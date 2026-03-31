@@ -23,7 +23,7 @@ export function Features() {
   return (
     <section className="px-6 lg:px-16 py-24">
       <div className="max-w-5xl mx-auto">
-        <h2 className="font-sans text-3xl font-semibold text-zinc-50 text-center mb-16">
+        <h2 className="font-heading text-3xl font-bold text-zinc-50 text-center mb-16">
           What toph senses
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">

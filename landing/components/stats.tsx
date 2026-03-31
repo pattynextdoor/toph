@@ -15,12 +15,12 @@ export function Stats() {
       <div className="max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
         {stats.map((stat) => (
           <div key={stat.label}>
-            <div className="font-sans text-4xl font-bold text-zinc-50">
+            <div className="font-heading text-4xl font-bold text-zinc-50">
               {stat.value > 0 ? (
                 <>
                   <NumberTicker
                     value={stat.value}
-                    className="font-sans text-4xl font-bold text-zinc-50"
+                    className="font-heading text-4xl font-bold text-zinc-50"
                   />
                   {stat.suffix && <span>{stat.suffix}</span>}
                 </>
