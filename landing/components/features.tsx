@@ -1,21 +1,37 @@
 const features = [
   {
     label: "01",
-    title: "Zero config",
-    description:
-      "Point it at your terminal. toph auto-discovers Claude Code sessions from ~/.claude/projects/ — no setup, no config files, no environment variables. Just run it.",
+    title: "Sessions",
+    description: (
+      <>
+        Every running Claude Code session across your machine. Active, idle,
+        waiting for permission — toph sees them all by watching{" "}
+        <code>~/.claude/projects/</code> for filesystem vibrations.
+      </>
+    ),
   },
   {
     label: "02",
-    title: "Live",
-    description:
-      "Activity feed updates every 2.5 seconds. Token counts tick up in real-time. Context fill meters animate as your agent thinks. 30fps rendering via Bubble Tea.",
+    title: "Token flow",
+    description: (
+      <>
+        <code>input_tokens</code>, <code>output_tokens</code>,{" "}
+        <code>cache_read</code>, burn rate. toph parses every assistant response
+        to track context window fill and estimated cost in real-time.
+      </>
+    ),
   },
   {
     label: "03",
-    title: "Beautiful",
-    description:
-      "Screenshot-worthy on first launch. Dark theme with color-coded panels, braille sparklines, and spring-animated meters. Built for the terminal, designed for r/unixporn.",
+    title: "Tool calls",
+    description: (
+      <>
+        <code>Bash</code>, <code>Edit</code>, <code>Read</code>,{" "}
+        <code>Write</code>, <code>Grep</code> — every tool invocation your
+        agents make, streamed into a live activity feed. See what your agents are
+        doing the moment they do it.
+      </>
+    ),
   },
 ];
 

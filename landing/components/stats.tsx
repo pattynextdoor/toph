@@ -4,7 +4,7 @@ import { NumberTicker } from "@/components/ui/number-ticker";
 
 const stats = [
   { value: 5, label: "panels", suffix: "" },
-  { value: 9, label: "hook events", suffix: "" },
+  { value: 6, label: "hook events", suffix: "" },
   { value: 30, label: "fps rendering", suffix: "" },
   { value: 0, label: "config needed", suffix: "" },
 ];

@@ -1,224 +1,273 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { NumberTicker } from "@/components/ui/number-ticker";
 
 // ---------------------------------------------------------------------------
-// Data
+// Data — matches the real toph dashboard layout
 // ---------------------------------------------------------------------------
 
 const sessions = [
-  { icon: "●", name: "api-server", branch: "feat/oauth", colorVar: "var(--terminal-active)", pulseClass: "" },
-  { icon: "◐", name: "auth-flow", branch: "fix/session", colorVar: "var(--terminal-waiting)", pulseClass: "animate-pulse-amber" },
-  { icon: "○", name: "docs", branch: "main", colorVar: "var(--terminal-idle)", pulseClass: "" },
+  { name: "tp", branch: "main", age: "2m", active: true },
+  { name: "toph", branch: "main", age: "3m", active: true },
+  { name: "acropora", branch: "main", age: "6m", active: true },
+  { name: "toph", branch: "main", age: "19h8m", active: true },
 ] as const;
 
-const toolBars = [
-  { name: "Bash", filled: 8, empty: 2, count: 34 },
-  { name: "Edit", filled: 6, empty: 4, count: 28 },
-  { name: "Read", filled: 4, empty: 6, count: 19 },
-  { name: "Glob", filled: 2, empty: 8, count: 12 },
-] as const;
+// Braille sparkline patterns per session (visual only)
+const sparklines = ["⣀⣤⣶⣿⣷⣤⡄", "⡀⣀⣤⣴⣶⣤⣀", "⣤⣶⣿⣿⣶⣤⣀", "⡀⡀⣀⣤⣶⣿⣷"] as const;
 
-const allEvents = [
-  { time: "14:23", tool: "Edit", file: "src/auth.ts" },
-  { time: "14:23", tool: "Bash", file: "npm test" },
-  { time: "14:24", tool: "Read", file: "package.json" },
-  { time: "14:24", tool: "Glob", file: "src/**/*.ts" },
-  { time: "14:25", tool: "Edit", file: "src/middleware.ts" },
-  { time: "14:25", tool: "Bash", file: "npm run build" },
-  { time: "14:26", tool: "Read", file: "tsconfig.json" },
-  { time: "14:26", tool: "Edit", file: "src/routes/api.ts" },
-  { time: "14:27", tool: "Bash", file: "git status" },
-  { time: "14:27", tool: "Glob", file: "tests/**/*.test.ts" },
-] as const;
+type ToolName = "Read" | "Edit" | "Bash" | "Glob" | "Skill" | "Agent";
 
-const toolSymbols: Record<string, string> = {
-  Edit: "✎",
+const toolGlyphs: Record<ToolName, string> = {
+  Read: "◇",
+  Edit: "◆",
   Bash: "▶",
-  Read: "◉",
-  Glob: "◎",
+  Glob: "⊙",
+  Skill: "✦",
+  Agent: "✦",
 };
 
-const toolColors: Record<string, string> = {
-  Edit: "var(--terminal-tool)",
-  Bash: "var(--terminal-active)",
-  Read: "", // uses text-zinc-500 class instead
-  Glob: "var(--terminal-tool)",
+const toolColorVars: Record<ToolName, string> = {
+  Read: "var(--terminal-read)",
+  Edit: "var(--terminal-edit)",
+  Bash: "var(--terminal-bash)",
+  Glob: "var(--terminal-search)",
+  Skill: "var(--terminal-agent)",
+  Agent: "var(--terminal-agent)",
 };
 
+interface ActivityEvent {
+  time: string;
+  session: string;
+  tool: ToolName;
+  detail: string;
+  count?: number;
+}
+
+const allEvents: ActivityEvent[] = [
+  { time: "04:42:55", session: "089eb8", tool: "Read", detail: "toph/TODOS.md" },
+  { time: "04:43:19", session: "089eb8", tool: "Edit", detail: "toph/TODOS.md", count: 2 },
+  { time: "04:43:22", session: "089eb8", tool: "Read", detail: "toph/TODOS.md" },
+  { time: "04:43:29", session: "089eb8", tool: "Edit", detail: "toph/TODOS.md" },
+  { time: "04:43:32", session: "089eb8", tool: "Read", detail: "toph/TODOS.md" },
+  { time: "04:43:37", session: "089eb8", tool: "Bash", detail: "git add TODOS.md && git commit" },
+  { time: "04:43:17", session: "089eb8", tool: "Read", detail: "toph/CLAUDE.md", count: 2 },
+  { time: "04:43:42", session: "089eb8", tool: "Edit", detail: "toph/CLAUDE.md", count: 2 },
+  { time: "04:43:46", session: "089eb8", tool: "Bash", detail: "git add CLAUDE.md && git commit" },
+  { time: "04:44:18", session: "089eb8", tool: "Read", detail: "data/*.go", count: 3 },
+  { time: "04:44:28", session: "089eb8", tool: "Edit", detail: "data/ringbuffer_test.go" },
+  { time: "04:44:31", session: "089eb8", tool: "Bash", detail: "go test ./internal/data/ -run TestRingBufferClear" },
+  { time: "04:44:41", session: "089eb8", tool: "Edit", detail: "ringbuffer.go", count: 2 },
+  { time: "04:44:52", session: "089eb8", tool: "Bash", detail: "go build ./...", count: 3 },
+  { time: "04:45:21", session: "089eb8", tool: "Read", detail: "model/model.go" },
+  { time: "04:45:30", session: "089eb8", tool: "Edit", detail: "model/model.go" },
+  { time: "04:45:38", session: "089eb8", tool: "Bash", detail: "go build ./...", count: 2 },
+];
+
+const pooledEvents = allEvents;
+
+const toolBarData = [
+  { name: "Read", count: 41, pct: 43 },
+  { name: "Bash", count: 19, pct: 20 },
+  { name: "Edit", count: 18, pct: 19 },
+  { name: "Skill", count: 5, pct: 5 },
+] as const;
+
 // ---------------------------------------------------------------------------
-// Helpers
+// Sub-components
 // ---------------------------------------------------------------------------
 
-function ToolBarRow({ name, filled, empty, count }: (typeof toolBars)[number]) {
+/** Orbiting dot indicator for active sessions */
+function OrbitDot({ color }: { color: string }) {
+  return (
+    <span className="relative inline-flex items-center justify-center w-3 h-3 shrink-0">
+      <span
+        className="absolute w-1.5 h-1.5 rounded-full"
+        style={{ backgroundColor: color, opacity: 0.3 }}
+      />
+      <span
+        className="animate-orbit absolute w-1 h-1 rounded-full"
+        style={{ backgroundColor: color }}
+      />
+    </span>
+  );
+}
+
+/** Time-gap separator line with diamond */
+function GapSeparator() {
+  return (
+    <div className="flex items-center justify-center text-zinc-600 select-none py-0.5">
+      <span className="text-[10px]">{"────────────── ◆ ──────────────"}</span>
+    </div>
+  );
+}
+
+/** Single tool bar row for the Tools panel */
+function ToolBarRow({ name, count, pct }: { name: string; count: number; pct: number }) {
+  const colorVar = toolColorVars[name as ToolName] || "var(--terminal-tool)";
+  const barWidth = Math.max(pct * 1.5, 2); // scale for visual weight
   return (
     <div className="flex items-center gap-2">
-      <span className="w-8 text-right text-zinc-400">{name}</span>
-      <span>
-        <span style={{ color: "var(--terminal-tool)" }}>{"█".repeat(filled)}</span>
-        <span className="text-zinc-700">{"░".repeat(empty)}</span>
+      <span className="w-10 text-right text-zinc-400">{name}</span>
+      <span className="text-zinc-500 w-5 text-right">{count}</span>
+      <span className="text-zinc-600 w-7 text-right">{pct}%</span>
+      <span className="flex-1 overflow-hidden">
+        <span
+          className="inline-block h-[2px] rounded-full"
+          style={{ backgroundColor: colorVar, width: `${barWidth}%` }}
+        />
       </span>
-      <span className="text-zinc-500">{count}</span>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Component
+// Main component
 // ---------------------------------------------------------------------------
 
 export function TophDemo() {
-  const [visibleEvents, setVisibleEvents] = useState<typeof allEvents[number][]>(() =>
-    allEvents.slice(0, 4) as unknown as typeof allEvents[number][]
+  const [visibleEvents, setVisibleEvents] = useState<ActivityEvent[]>(() =>
+    pooledEvents.slice(0, 8)
   );
-  const [contextWidth, setContextWidth] = useState(74);
   const [reducedMotion, setReducedMotion] = useState(false);
-  const eventIndexRef = useRef(4); // next event to add
+  const eventIndexRef = useRef(8);
 
-  // Detect prefers-reduced-motion on mount
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     if (mq.matches) {
       setReducedMotion(true);
-      // Set static "most appealing" state
-      setVisibleEvents(allEvents.slice(0, 6) as unknown as typeof allEvents[number][]);
-      setContextWidth(78);
+      setVisibleEvents(pooledEvents.slice(0, 10));
     }
   }, []);
-
-  // Context meter animation (74% → 78%)
-  useEffect(() => {
-    if (reducedMotion) return;
-    const timer = setTimeout(() => setContextWidth(78), 500);
-    return () => clearTimeout(timer);
-  }, [reducedMotion]);
 
   // Activity feed cycling
   useEffect(() => {
     if (reducedMotion) return;
-
     const interval = setInterval(() => {
-      const nextIndex = eventIndexRef.current % allEvents.length;
+      const nextIndex = eventIndexRef.current % pooledEvents.length;
       eventIndexRef.current += 1;
-
       setVisibleEvents((prev) => {
-        const next = [...prev, allEvents[nextIndex]];
-        // Keep max 6 visible — drop oldest
-        if (next.length > 6) return next.slice(next.length - 6);
+        const next = [...prev, pooledEvents[nextIndex]];
+        if (next.length > 10) return next.slice(next.length - 10);
         return next;
       });
     }, 2500);
-
     return () => clearInterval(interval);
   }, [reducedMotion]);
 
-  // ------------------------------------------------------------------
-  // Panel label helper
-  // ------------------------------------------------------------------
   const panelLabel = (text: string) => (
-    <div className="text-[11px] uppercase tracking-wider text-zinc-500 mb-2">{text}</div>
+    <div className="text-[11px] uppercase tracking-wider font-bold mb-2" style={{ color: "var(--terminal-border)" }}>
+      {text}
+    </div>
   );
 
-  // ------------------------------------------------------------------
-  // Render
-  // ------------------------------------------------------------------
   return (
-    <div className="bg-zinc-950 font-mono text-[12px] text-zinc-300 w-full">
-      {/* Top row */}
-      <div className="grid grid-cols-[40fr_60fr] md:grid-cols-[22fr_36fr_42fr] border-b border-zinc-800">
-        {/* Panel 1 — Sessions */}
-        <div className="p-3 border-r border-zinc-800">
-          {panelLabel("Sessions")}
-          <div className="space-y-2">
-            {sessions.map((s) => (
-              <div key={s.name}>
-                <div className="flex items-center gap-2">
-                  <span className={s.pulseClass} style={{ color: s.colorVar }}>
-                    {s.icon}
-                  </span>
+    <div className="bg-zinc-950 font-mono text-[11px] leading-snug text-zinc-300 w-full">
+      {/* ─── Top row: Sessions + Detail | Activity ─── */}
+      <div className="grid grid-cols-[40fr_60fr] md:grid-cols-[35fr_65fr] border-b border-zinc-800">
+        {/* Left column: Sessions + Detail stacked */}
+        <div className="border-r border-zinc-800">
+          {/* Sessions */}
+          <div className="p-3 border-b border-zinc-800">
+            {panelLabel("Sessions")}
+            <div className="space-y-1">
+              {sessions.map((s, i) => (
+                <div key={`${s.name}-${i}`} className="flex items-center gap-1.5">
+                  <OrbitDot color="var(--terminal-active)" />
                   <span className="text-zinc-200">{s.name}</span>
+                  <span className="text-zinc-600">{s.branch}</span>
+                  <span className="text-zinc-700 text-[10px] ml-auto font-mono tracking-tight">
+                    {sparklines[i]}
+                  </span>
+                  <span className="text-zinc-500 ml-1">{s.age}</span>
                 </div>
-                <div className="ml-5 text-zinc-500 text-[11px]">{s.branch}</div>
+              ))}
+            </div>
+          </div>
+
+          {/* Detail */}
+          <div className="p-3 border-b border-zinc-800">
+            {panelLabel("Detail")}
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <span style={{ color: "var(--terminal-active)" }}>●</span>
+                <span style={{ color: "var(--terminal-active)" }}>active</span>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Panel 2 — Detail */}
-        <div className="hidden md:block p-3 border-r border-zinc-800">
-          {panelLabel("Detail")}
-          <div className="space-y-1">
-            <div>
-              <span className="text-zinc-500">session: </span>
-              <span className="text-zinc-200">api-server</span>
-            </div>
-            <div>
-              <span className="text-zinc-500">status: </span>
-              <span style={{ color: "var(--terminal-active)" }}>active</span>
-            </div>
-            <div>
-              <span className="text-zinc-500">branch: </span>
-              <span className="text-zinc-200">feat/oauth</span>
-            </div>
-            <div>
-              <span className="text-zinc-500">tokens: </span>
-              <NumberTicker
-                value={14832}
-                startValue={14200}
-                className="text-zinc-200 text-[12px] font-mono"
-              />
-            </div>
-            <div>
-              <span className="text-zinc-500">cost: </span>
-              <span className="text-zinc-200">$1.42</span>
-            </div>
-            <div>
-              <span className="text-zinc-500">context: </span>
-              <span className="text-zinc-400 text-[11px]">{contextWidth}%</span>
-            </div>
-            <div className="bg-zinc-800 h-2 rounded-full overflow-hidden mt-1">
-              <div
-                className="h-full rounded-full"
-                style={{
-                  backgroundColor: "var(--terminal-active)",
-                  width: `${contextWidth}%`,
-                  transition: reducedMotion ? "none" : "all 2000ms ease-out",
-                }}
-              />
+              <div>
+                <span className="text-zinc-600">dir  </span>
+                <span className="text-zinc-300">/Users/patty/dev/tp</span>
+              </div>
+              <div>
+                <span className="text-zinc-600">git  </span>
+                <span style={{ color: "var(--terminal-active)" }}>main</span>
+                <span className="text-zinc-400 ml-2">claude-opus-4-6</span>
+              </div>
+              <div>
+                <span className="text-zinc-600">age  </span>
+                <span className="text-zinc-300">18s</span>
+                <span className="text-zinc-600 ml-2">last </span>
+                <span style={{ color: "var(--terminal-bash)" }} className="font-bold">Bash</span>
+              </div>
+              <div>
+                <span className="text-zinc-600">tok  </span>
+                <span className="text-zinc-300">84 in / 19.8K out</span>
+              </div>
+              {/* Context bar */}
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-zinc-600">ctx</span>
+                <div className="flex-1 bg-zinc-800 h-2 rounded-sm overflow-hidden">
+                  <div
+                    className="h-full rounded-sm"
+                    style={{
+                      width: "9%",
+                      background: "linear-gradient(90deg, var(--terminal-active), var(--terminal-waiting))",
+                    }}
+                  />
+                </div>
+                <span className="text-zinc-500 text-[10px]">9%</span>
+              </div>
+              {/* Subagent tree */}
+              <div className="mt-1">
+                <span className="text-zinc-600">└ </span>
+                <span style={{ color: "var(--terminal-active)" }}>●</span>
+                <span className="text-zinc-400 ml-1">Explore:</span>
+                <span className="text-zinc-300 ml-1">Explore tp project</span>
+              </div>
             </div>
           </div>
 
-          {/* Tool usage sub-section */}
-          <div className="mt-3">
+          {/* Tools (hidden on small screens) */}
+          <div className="hidden md:block p-3">
             {panelLabel("Tools")}
             <div className="space-y-1">
-              {toolBars.map((t) => (
-                <ToolBarRow key={t.name} {...t} />
+              {toolBarData.map((t) => (
+                <ToolBarRow key={t.name} name={t.name} count={t.count} pct={t.pct} />
               ))}
             </div>
           </div>
         </div>
 
-        {/* Panel 3 — Activity Feed */}
-        <div className="p-3">
+        {/* Activity Feed */}
+        <div className="p-3 flex flex-col">
           {panelLabel("Activity")}
-          <div className="space-y-1 overflow-hidden">
+          <div className="space-y-0.5 overflow-hidden flex-1">
             {visibleEvents.map((ev, i) => {
-              const colorStyle = toolColors[ev.tool]
-                ? { color: toolColors[ev.tool] }
-                : undefined;
-              const colorClass = ev.tool === "Read" ? "text-zinc-500" : "";
-
+              const color = toolColorVars[ev.tool];
+              const glyph = toolGlyphs[ev.tool];
+              const showGap = i === 3 || i === 6; // visual rhythm breaks
               return (
-                <div key={`${ev.time}-${ev.tool}-${ev.file}-${i}`} className="flex items-center gap-2">
-                  <span className="text-zinc-500 shrink-0">{ev.time}</span>
-                  <span className={colorClass} style={colorStyle}>
-                    {toolSymbols[ev.tool]}
-                  </span>
-                  <span className={colorClass} style={colorStyle}>
-                    {ev.file}
-                  </span>
+                <div key={`${ev.time}-${ev.tool}-${i}`}>
+                  {showGap && <GapSeparator />}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-zinc-600 shrink-0">{ev.time}</span>
+                    <span className="text-zinc-600 shrink-0">{ev.session}</span>
+                    <span style={{ color }} className="shrink-0">{glyph}</span>
+                    <span style={{ color }} className="font-bold shrink-0">
+                      {ev.tool}
+                      {ev.count && ev.count > 1 ? ` \u00d7${ev.count}` : ""}
+                    </span>
+                    <span className="text-zinc-500 truncate">{ev.detail}</span>
+                  </div>
                 </div>
               );
             })}
@@ -226,42 +275,44 @@ export function TophDemo() {
         </div>
       </div>
 
-      {/* Bottom row */}
+      {/* ─── Bottom row: Metrics (hidden on mobile) ─── */}
       <div className="hidden md:grid grid-cols-2">
-        {/* Panel 4 — Metrics */}
         <div className="p-3 border-r border-zinc-800">
           {panelLabel("Metrics")}
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             <div>
-              <span className="text-zinc-500">tokens: </span>
-              <NumberTicker
-                value={14832}
-                startValue={14200}
-                className="text-zinc-200 text-[12px] font-mono"
-              />
+              <span style={{ color: "var(--terminal-active)" }}>in 229</span>
+              <span className="text-zinc-600 mx-2"> </span>
+              <span style={{ color: "var(--terminal-waiting)" }}>out 34.3K</span>
+              <span className="text-zinc-500 ml-2">1313 tok/s</span>
             </div>
             <div>
-              <span className="text-zinc-500">cost: </span>
-              <span className="text-zinc-200">$1.42</span>
+              <span className="text-zinc-600">cache </span>
+              <span style={{ color: "var(--terminal-active)" }}>100%</span>
+              <span className="text-zinc-400 ml-1">4.1M</span>
             </div>
             <div>
-              <span className="text-zinc-500">burn rate: </span>
-              <span className="text-zinc-200">~420 tok/min</span>
+              <span className="text-zinc-600">cost  </span>
+              <span style={{ color: "var(--terminal-active)" }}>$17.23</span>
+              <span className="text-zinc-500 ml-2">$354/hr</span>
             </div>
             <div>
-              <span className="text-zinc-500">sessions: </span>
-              <span className="text-zinc-200">3 active</span>
+              <span className="text-zinc-600">sessions </span>
+              <span className="text-zinc-200">2</span>
             </div>
           </div>
         </div>
 
-        {/* Panel 5 — Tools */}
-        <div className="p-3">
-          {panelLabel("Tools")}
-          <div className="space-y-1">
-            {toolBars.map((t) => (
-              <ToolBarRow key={t.name} {...t} />
-            ))}
+        {/* Status bar style footer */}
+        <div className="p-3 flex items-end">
+          <div className="flex items-center gap-4 text-zinc-600 text-[10px]">
+            <span><span className="text-zinc-400">tab</span> panels</span>
+            <span><span className="text-zinc-400">j/k</span> navigate</span>
+            <span><span className="text-zinc-400">?</span> help</span>
+            <span><span className="text-zinc-400">q</span> quit</span>
+            <span className="ml-auto">
+              jsonl <span style={{ color: "var(--terminal-active)" }}>●</span> 30fps <span className="text-zinc-300">2 active</span>
+            </span>
           </div>
         </div>
       </div>

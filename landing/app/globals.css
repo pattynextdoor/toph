@@ -146,7 +146,21 @@
   --terminal-idle: #6C6C6C;
   --terminal-subagent: #D7AFFF;
   --terminal-border: #87AFFF;
+  --terminal-bash: #FFD787;
+  --terminal-read: #87AFFF;
+  --terminal-edit: #87D787;
+  --terminal-search: #D7AFD7;
+  --terminal-agent: #D7AFFF;
   --surface-darker: #0d0d10;
+}
+
+@keyframes orbit {
+  0%   { transform: rotate(0deg) translateX(3px) rotate(0deg); }
+  100% { transform: rotate(360deg) translateX(3px) rotate(-360deg); }
+}
+
+.animate-orbit {
+  animation: orbit 2s linear infinite;
 }
 
 @layer base {
@@ -158,6 +172,9 @@
   }
   html {
     @apply font-sans;
+  }
+  code:not(pre code) {
+    @apply font-mono text-[#87D7D7] bg-white/5 rounded px-1.5 py-0.5 text-[0.85em];
   }
 }
 

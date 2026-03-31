@@ -88,6 +88,17 @@ export function Hero() {
           </a>
         </nav>
 
+        {/* Early access banner */}
+        <div className="mb-6" {...enter(STAGGER.headline - 50)}>
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#87AFFF]/30 bg-[#87AFFF]/10 px-3 py-1 font-mono text-xs text-[#87AFFF] backdrop-blur-sm">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#87AFFF] opacity-50" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-[#87AFFF]" />
+            </span>
+            Early Access
+          </span>
+        </div>
+
         {/* Headline */}
         <h1 className="font-heading text-5xl lg:text-[64px] font-bold text-zinc-50 leading-[1.05] tracking-[-0.03em]">
           <span className="block" {...enter(STAGGER.headline, "left")}>btop</span>

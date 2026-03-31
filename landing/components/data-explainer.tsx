@@ -11,8 +11,8 @@ const sources = [
   {
     title: "Hooks",
     description:
-      "9 lifecycle events: intercept tool calls, block early stops, capture prompts, and track session state. Opt-in for richer real-time data.",
-    detail: "PreToolUse \u00b7 PostToolUse \u00b7 Stop \u00b7 SubagentStop \u00b7 SessionStart \u00b7 SessionEnd \u00b7 UserPromptSubmit \u00b7 PreCompact \u00b7 Notification",
+      "6 lifecycle events: intercept tool calls, track subagents, and capture notifications. Opt-in for richer real-time data.",
+    detail: "PreToolUse \u00b7 PostToolUse \u00b7 Stop \u00b7 SubagentStart \u00b7 SubagentStop \u00b7 Notification",
     icon: Webhook,
   },
   {
