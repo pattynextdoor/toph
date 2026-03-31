@@ -68,6 +68,15 @@ func main() {
 		}
 	}()
 
+	// Start hook HTTP server for real-time Claude Code hook events
+	hookSource := source.NewHookSource(0)
+	go func() {
+		if err := hookSource.Start(ctx, eventCh); err != nil {
+			slog.Debug("hooks source error", "error", err)
+		}
+	}()
+	slog.Debug("hooks server port", "port", hookSource.Port())
+
 	// Start process scanner (30s interval) for supplementary session detection
 	processSource := source.NewProcessSource(30 * time.Second)
 	go func() {
@@ -101,5 +110,6 @@ func main() {
 
 	cancel()
 	jsonlSource.Stop()
+	hookSource.Stop()
 	processSource.Stop()
 }
