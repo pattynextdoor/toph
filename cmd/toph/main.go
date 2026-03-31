@@ -7,12 +7,15 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/pattynextdoor/toph/internal/config"
 	"github.com/pattynextdoor/toph/internal/data"
+	"github.com/pattynextdoor/toph/internal/export"
 	"github.com/pattynextdoor/toph/internal/model"
+	"github.com/pattynextdoor/toph/internal/serve"
 	"github.com/pattynextdoor/toph/internal/setup"
 	"github.com/pattynextdoor/toph/internal/source"
 )
@@ -76,6 +79,32 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Export subcommand: read JSONL files, aggregate state, print JSON, exit.
+	if cfg.Command == config.CmdExport {
+		manager := data.NewManager()
+		matches, _ := filepath.Glob(filepath.Join(projectsDir, "*", "*.jsonl"))
+		for _, path := range matches {
+			content, err := os.ReadFile(path)
+			if err != nil {
+				continue
+			}
+			rel, _ := filepath.Rel(projectsDir, path)
+			parts := strings.SplitN(rel, string(filepath.Separator), 2)
+			project := ""
+			if len(parts) > 0 {
+				project = parts[0]
+			}
+			for _, e := range source.ParseBytes(content, project) {
+				manager.HandleEvent(e)
+			}
+		}
+		if err := export.Run(manager); err != nil {
+			fmt.Fprintf(os.Stderr, "Export error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -106,6 +135,39 @@ func main() {
 		}
 	}()
 	slog.Debug("hooks server port", "port", hookSource.Port())
+
+	// Serve mode: start an SSH server instead of a local TUI. Events flow
+	// into the shared Manager; each SSH session creates its own Bubble Tea
+	// program that reads from the Manager on tick.
+	if cfg.Command == config.CmdServe {
+		port := cfg.ServePort
+		if port == 0 {
+			port = 2222
+		}
+
+		// Bridge source events into the Manager so SSH sessions see live data.
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case e, ok := <-eventCh:
+					if !ok {
+						return
+					}
+					manager.HandleEvent(e)
+				}
+			}
+		}()
+
+		if err := serve.Run(ctx, port, manager); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		jsonlSource.Stop()
+		hookSource.Stop()
+		return
+	}
 
 	m := model.New(manager)
 	p := tea.NewProgram(m)
