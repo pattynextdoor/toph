@@ -55,7 +55,12 @@ func (p *ToolsPanel) Render(toolCounts map[string]int, width, height int) string
 	for name, count := range toolCounts {
 		entries = append(entries, toolEntry{name, count})
 	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].count > entries[j].count })
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].count != entries[j].count {
+			return entries[i].count > entries[j].count
+		}
+		return entries[i].name < entries[j].name // stable tiebreaker
+	})
 
 	maxCount := entries[0].count
 
