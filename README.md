@@ -2,7 +2,7 @@
 
 **btop for AI agents.** A beautiful terminal dashboard that monitors AI coding agent activity in real-time.
 
-Named after [Toph Beifong](https://avatar.fandom.com/wiki/Toph_Beifong) -- she's blind but "sees" everything through earthbending vibrations. toph sees your AI agents through vibrations in the filesystem.
+Your AI agents are working. Are you watching? See every tool call, token burn, and context fill across all your sessions -- one terminal, zero config, real-time.
 
 > [!NOTE]
 > toph currently supports [Claude Code](https://claude.ai/code). Support for other agents (Aider, Codex, Cursor) is planned.
