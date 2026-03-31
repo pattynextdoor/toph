@@ -14,11 +14,42 @@ import (
 	"github.com/pattynextdoor/toph/internal/config"
 	"github.com/pattynextdoor/toph/internal/data"
 	"github.com/pattynextdoor/toph/internal/model"
+	"github.com/pattynextdoor/toph/internal/setup"
 	"github.com/pattynextdoor/toph/internal/source"
+)
+
+// version and commit are set at build time via ldflags by goreleaser.
+var (
+	version = "dev"
+	commit  = "none"
 )
 
 func main() {
 	cfg := config.Parse()
+
+	if cfg.Version {
+		fmt.Printf("toph %s (%s)\n", version, commit)
+		return
+	}
+
+	// Handle setup subcommand: modify Claude Code settings and exit (no TUI needed)
+	if cfg.Command == config.CmdSetup {
+		if cfg.SetupRemove {
+			if err := setup.Remove(); err != nil {
+				fmt.Fprintf(os.Stderr, "Error removing hooks: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Println("toph hooks removed from Claude Code settings.")
+		} else {
+			if err := setup.Install(7891); err != nil {
+				fmt.Fprintf(os.Stderr, "Error installing hooks: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Println("toph hooks installed in Claude Code settings.")
+			fmt.Println("Hooks will POST to http://127.0.0.1:7891/hook")
+		}
+		return
+	}
 
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -38,7 +69,7 @@ func main() {
 	}
 
 	projectsDir := filepath.Join(home, ".claude", "projects")
-	slog.Debug("toph starting", "version", "0.1.0", "projects_dir", projectsDir)
+	slog.Debug("toph starting", "version", version, "projects_dir", projectsDir)
 
 	if _, err := os.Stat(projectsDir); os.IsNotExist(err) {
 		fmt.Fprintf(os.Stderr, "No Claude Code data found at %s\n", projectsDir)

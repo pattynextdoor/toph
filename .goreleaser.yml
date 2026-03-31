@@ -1,0 +1,54 @@
+version: 2
+
+project_name: toph
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: toph
+    main: ./cmd/toph
+    binary: toph
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}}
+
+archives:
+  - id: toph
+    builds:
+      - toph
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+
+brews:
+  - repository:
+      owner: pattynextdoor
+      name: homebrew-tap
+    homepage: "https://github.com/pattynextdoor/toph"
+    description: "btop for AI agents — beautiful terminal dashboard for monitoring AI coding agents"
+    license: "MIT"
+    install: |
+      bin.install "toph"

@@ -1,16 +1,41 @@
 package config
 
-import "flag"
+import "os"
 
-// Config holds CLI flags for toph.
+// Command represents the subcommand to run.
+type Command int
+
+const (
+	CmdDashboard Command = iota
+	CmdSetup
+)
+
+// Config holds CLI configuration for toph.
 type Config struct {
-	Debug bool
+	Command     Command
+	Debug       bool
+	Version     bool
+	SetupRemove bool
 }
 
-// Parse reads CLI flags and returns a populated Config.
+// Parse reads CLI args and returns a populated Config.
+// We use manual parsing instead of flag because flag doesn't handle subcommands well.
 func Parse() *Config {
 	c := &Config{}
-	flag.BoolVar(&c.Debug, "debug", false, "enable debug logging to ~/.config/toph/toph.log")
-	flag.Parse()
+	args := os.Args[1:]
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "setup":
+			c.Command = CmdSetup
+		case "--remove":
+			c.SetupRemove = true
+		case "--debug":
+			c.Debug = true
+		case "--version", "-v":
+			c.Version = true
+		}
+	}
+
 	return c
 }
