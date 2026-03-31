@@ -62,3 +62,15 @@ func isJumpToPanel(msg tea.KeyPressMsg) (int, bool) {
 	}
 	return 0, false
 }
+
+func isEnter(msg tea.KeyPressMsg) bool {
+	return msg.String() == "enter"
+}
+
+func isRefresh(msg tea.KeyPressMsg) bool {
+	return msg.String() == "r"
+}
+
+func isClearFeed(msg tea.KeyPressMsg) bool {
+	return msg.String() == "ctrl+l"
+}
