@@ -110,11 +110,11 @@ func (p *ToolsPanel) Render(toolCounts map[string]int, width, height int) string
 		if barLen > remaining {
 			barLen = remaining
 		}
-		bar := barStyle.Render(strings.Repeat("▇", barLen))
+		bar := barStyle.Render(strings.Repeat("=", barLen))
 		// Final safety: if the full line is still too wide, trim the bar
 		for lipgloss.Width(label+bar) > innerW && barLen > 1 {
 			barLen--
-			bar = barStyle.Render(strings.Repeat("▇", barLen))
+			bar = barStyle.Render(strings.Repeat("=", barLen))
 		}
 		lines = append(lines, label+bar)
 	}
