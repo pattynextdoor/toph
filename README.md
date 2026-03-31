@@ -7,7 +7,7 @@ Named after [Toph Beifong](https://avatar.fandom.com/wiki/Toph_Beifong) -- she's
 > [!NOTE]
 > toph currently supports [Claude Code](https://claude.ai/code). Support for other agents (Aider, Codex, Cursor) is planned.
 
-<!-- TODO: Add screenshot/GIF -->
+![toph dashboard](docs/screenshot.png)
 
 ## Features
 
