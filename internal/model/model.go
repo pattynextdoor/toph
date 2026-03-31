@@ -39,6 +39,7 @@ type Model struct {
 	sessions *panels.SessionsPanel
 	detail   *panels.DetailPanel
 	activity *panels.ActivityPanel
+	metrics  *panels.MetricsPanel
 	tools    *panels.ToolsPanel
 
 	focusedPanel  int
@@ -59,6 +60,7 @@ func New(manager *data.Manager) Model {
 		sessions:  panels.NewSessionsPanel(theme),
 		detail:    panels.NewDetailPanel(theme),
 		activity:  panels.NewActivityPanel(theme),
+		metrics:   panels.NewMetricsPanel(theme),
 		tools:     panels.NewToolsPanel(theme),
 	}
 }
@@ -152,6 +154,7 @@ func (m *Model) setFocus(panel int) {
 	m.sessions.SetFocused(panel == PanelSessions)
 	m.detail.SetFocused(panel == PanelDetail)
 	m.activity.SetFocused(panel == PanelActivity)
+	m.metrics.SetFocused(panel == PanelMetrics)
 	m.tools.SetFocused(panel == PanelTools)
 }
 
@@ -181,17 +184,8 @@ func (m Model) View() tea.View {
 	selectedSession := m.sessions.SelectedSession(allSessions)
 	detailView := m.detail.Render(selectedSession, l.LeftWidth, l.DetailHeight)
 	activityView := m.activity.Render(feedEvents, l.RightWidth, l.ActivityHeight)
+	metricsView := m.metrics.Render(activeSessions, l.RightWidth, l.MetricsHeight)
 	toolsView := m.tools.Render(toolCounts, l.LeftWidth, l.ToolsHeight)
-
-	// Metrics panel — placeholder until Phase 2.
-	metricsStyle := m.theme.PanelNormal
-	if m.focusedPanel == PanelMetrics {
-		metricsStyle = m.theme.PanelFocus
-	}
-	metricsView := metricsStyle.
-		Width(l.RightWidth - 2).Height(l.MetricsHeight - 2).
-		Render(m.theme.Title.Render("METRICS") + "\n" +
-			lipgloss.NewStyle().Foreground(m.theme.Idle).Render("Collecting..."))
 
 	// Compose columns: left (sessions/detail/tools), right (activity/metrics).
 	leftCol := lipgloss.JoinVertical(lipgloss.Left, sessionsView, detailView, toolsView)
