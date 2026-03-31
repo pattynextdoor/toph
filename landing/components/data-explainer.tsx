@@ -53,7 +53,7 @@ export function DataExplainer() {
                 <p className="text-sm text-zinc-400 mt-2 leading-relaxed">
                   {source.description}
                 </p>
-                <p className="font-mono text-xs text-[#87AFFF]/50 mt-4">
+                <p className="font-mono text-xs text-[#87AFFF]/50 mt-4 break-all">
                   {source.detail}
                 </p>
               </div>
