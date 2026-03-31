@@ -51,10 +51,28 @@ export function Hero() {
     };
   };
 
+  const bookFold = (side: "left" | "right") => {
+    if (reducedMotion) return {};
+    const closed = side === "left" ? "rotateY(-70deg)" : "rotateY(70deg)";
+    const origin = side === "left" ? "right center" : "left center";
+    return {
+      style: {
+        transformOrigin: origin,
+        transform: show ? "rotateY(0deg)" : closed,
+        opacity: show ? 1 : 0,
+        transition: `transform 900ms cubic-bezier(0.16, 1, 0.3, 1) 100ms, opacity 600ms ease-out 100ms`,
+      },
+    };
+  };
+
   return (
-    <section className="min-h-screen grid lg:grid-cols-[38fr_62fr]">
+    <section className="min-h-screen overflow-hidden" style={{ perspective: "1200px" }}>
+      <div className="grid lg:grid-cols-[38fr_62fr] min-h-screen">
       {/* Left Column */}
-      <div className="relative flex flex-col justify-center px-6 lg:px-12 py-20 text-center lg:text-left">
+      <div
+        className="relative flex flex-col justify-center px-6 lg:px-12 py-20 text-center lg:text-left"
+        {...bookFold("left")}
+      >
         {/* Nav */}
         <nav
           className="absolute top-8 left-6 right-6 lg:left-12 lg:right-12 flex flex-row justify-between items-center"
@@ -99,7 +117,10 @@ export function Hero() {
       </div>
 
       {/* Right Column */}
-      <div className="relative flex items-center justify-center overflow-hidden border-l border-white/[0.04] bg-[#0d0d10] p-8 lg:p-12 min-h-[400px]">
+      <div
+        className="relative flex items-center justify-center overflow-hidden border-l border-white/[0.04] bg-[#0d0d10] p-8 lg:p-12 min-h-[400px]"
+        {...bookFold("right")}
+      >
         {/* Animated grid pattern */}
         {!reducedMotion && (
           <AnimatedGridPattern
@@ -140,6 +161,7 @@ export function Hero() {
             />
           )}
         </div>
+      </div>
       </div>
     </section>
   );
