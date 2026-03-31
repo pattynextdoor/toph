@@ -107,7 +107,7 @@ func (p *ToolsPanel) Render(toolCounts map[string]int, width, height int) string
 			barLen = 1
 		}
 		label := fmt.Sprintf(nameFmt+" %3d %s", name, e.count,
-			barStyle.Render(strings.Repeat("─", barLen)))
+			barStyle.Render(strings.Repeat("█", barLen)))
 		lines = append(lines, label)
 	}
 
