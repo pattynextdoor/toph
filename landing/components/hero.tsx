@@ -5,7 +5,6 @@ import { TophDemo } from "@/components/toph-demo";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { AnimatedGridPattern } from "@/components/ui/animated-grid-pattern";
 import { BorderBeam } from "@/components/ui/border-beam";
-import { ShimmerButton } from "@/components/ui/shimmer-button";
 
 export function Hero() {
   const reducedMotion = useReducedMotion();
@@ -17,42 +16,33 @@ export function Hero() {
         {/* Nav */}
         <nav className="absolute top-8 left-6 right-6 lg:left-12 lg:right-12 flex flex-row justify-between items-center">
           <span className="font-mono text-sm text-zinc-500">toph</span>
-          <ShimmerButton
-            background="rgba(255,255,255,0.03)"
-            borderRadius="8px"
-            shimmerColor="rgba(255,255,255,0.05)"
-            shimmerSize="0.03em"
-            shimmerDuration="3s"
-            className="h-8 px-4"
+          <a
+            href="https://github.com/pattynextdoor/toph"
+            aria-label="View toph on GitHub"
+            className="font-mono text-sm text-zinc-500 transition-colors duration-200 hover:text-zinc-300 cursor-pointer"
           >
-            <a
-              href="https://github.com/pattynextdoor/toph"
-              aria-label="View toph on GitHub"
-              className="text-sm text-zinc-300"
-            >
-              GitHub
-            </a>
-          </ShimmerButton>
+            GitHub &#8599;
+          </a>
         </nav>
 
         {/* Headline */}
-        <h1 className="text-5xl lg:text-6xl font-bold text-zinc-50 leading-none tracking-tight">
+        <h1 className="font-sans text-5xl lg:text-[64px] font-semibold text-zinc-50 leading-[1.05] tracking-[-0.03em]">
           <span className="block">btop</span>
-          <span className="block">for AI agents.</span>
+          <span className="block text-zinc-400">for AI agents.</span>
         </h1>
 
         {/* Subtext */}
-        <p className="mt-6 text-lg text-zinc-500 leading-relaxed max-w-[28ch] mx-auto lg:mx-0">
+        <p className="mt-8 font-sans text-base text-zinc-500 leading-relaxed max-w-[32ch] mx-auto lg:mx-0">
           See what your agents are doing. Real-time terminal dashboard.
         </p>
 
         {/* Install Command */}
-        <div className="mt-10 overflow-hidden">
+        <div className="mt-8 overflow-hidden max-w-md mx-auto lg:mx-0">
           <InstallCommand />
         </div>
 
         {/* Scroll hint */}
-        <span className="absolute bottom-8 left-12 font-mono text-[11px] text-zinc-700 hidden lg:block">
+        <span className="absolute bottom-8 left-6 lg:left-12 font-mono text-[11px] text-zinc-700 hidden lg:block">
           &#8595; scroll
         </span>
       </div>
