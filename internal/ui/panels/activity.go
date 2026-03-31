@@ -22,6 +22,20 @@ type ActivityPanel struct {
 	sessionCount int // set by caller to control compact mode
 }
 
+// groupedEvent represents one or more consecutive events collapsed into a
+// single display line. When Count > 1, the events share the same Type,
+// ToolName, and SessionID, and occurred within groupWindow of each other.
+type groupedEvent struct {
+	Representative data.Event // most recent event in the group
+	Count          int
+	AllSameDetail  bool   // true when every event in the group has identical detail
+	CommonDetail   string // the shared detail (when AllSameDetail) or empty
+}
+
+// groupWindow is the maximum gap between consecutive events before a new
+// group starts, even if type+tool match.
+const groupWindow = 60 * time.Second
+
 // NewActivityPanel creates an ActivityPanel bound to the given theme.
 func NewActivityPanel(theme *ui.Theme) *ActivityPanel {
 	return &ActivityPanel{theme: theme, autoScroll: true}
@@ -78,7 +92,11 @@ func (p *ActivityPanel) Render(events []data.Event, width, height int) string {
 	title := p.theme.Title.Render("ACTIVITY")
 	visibleLines := innerH - 1
 
-	maxOffset := len(events) - visibleLines
+	// Group consecutive same-tool events before pagination so scroll
+	// offsets operate on display lines, not raw events.
+	groups := groupEvents(events)
+
+	maxOffset := len(groups) - visibleLines
 	if maxOffset < 0 {
 		maxOffset = 0
 	}
@@ -86,7 +104,7 @@ func (p *ActivityPanel) Render(events []data.Event, width, height int) string {
 		p.offset = maxOffset
 	}
 
-	end := len(events) - p.offset
+	end := len(groups) - p.offset
 	start := end - visibleLines
 	if start < 0 {
 		start = 0
@@ -95,12 +113,12 @@ func (p *ActivityPanel) Render(events []data.Event, width, height int) string {
 	var lines []string
 	lines = append(lines, title)
 
-	if len(events) == 0 {
+	if len(groups) == 0 {
 		lines = append(lines, lipgloss.NewStyle().Foreground(p.theme.Idle).Render("Waiting for events..."))
 	}
 
-	for _, e := range events[start:end] {
-		lines = append(lines, p.renderEvent(e, innerW))
+	for _, g := range groups[start:end] {
+		lines = append(lines, p.renderGroupedEvent(g, innerW))
 	}
 
 	if !p.autoScroll && p.offset > 0 {
@@ -110,6 +128,86 @@ func (p *ActivityPanel) Render(events []data.Event, width, height int) string {
 
 	content := strings.Join(lines, "\n")
 	return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render(content)
+}
+
+// renderGroupedEvent renders a groupedEvent. Single events (Count == 1)
+// render identically to the old per-event path. Groups show a count badge
+// like "Bash ×3" with the shared detail (if all identical) or no detail.
+func (p *ActivityPanel) renderGroupedEvent(g groupedEvent, width int) string {
+	if g.Count == 1 {
+		return p.renderEvent(g.Representative, width)
+	}
+	e := g.Representative
+
+	ts := e.Timestamp.Format("15:04:05")
+	tsStyle := lipgloss.NewStyle().Foreground(p.theme.TextDim)
+
+	var typeLabel string
+	var typeColor = p.theme.TextDim
+
+	switch e.Type {
+	case data.EventToolUse:
+		typeLabel = shortenToolName(e.ToolName)
+		typeColor = p.theme.ToolUse
+	case data.EventToolResult:
+		typeLabel = "result"
+		typeColor = p.theme.ToolUse
+	case data.EventSubagentStart:
+		typeLabel = "agent+"
+		typeColor = p.theme.Subagent
+	case data.EventSubagentEnd:
+		typeLabel = "agent-"
+		typeColor = p.theme.Subagent
+	case data.EventError:
+		typeLabel = "ERROR"
+		typeColor = p.theme.Error
+	default:
+		typeLabel = e.Type.String()
+	}
+
+	if e.Conflicted {
+		typeColor = p.theme.Error
+		typeLabel = "!" + typeLabel
+	}
+
+	// Add count badge: "Bash ×3"
+	typeLabel = fmt.Sprintf("%s ×%d", typeLabel, g.Count)
+
+	age := time.Since(e.Timestamp)
+	typeColor = ageColor(typeColor, age, p.theme)
+	labelStyle := lipgloss.NewStyle().Foreground(typeColor)
+
+	var prefix string
+	if p.sessionCount > 1 {
+		sessID := e.SessionID
+		if len(sessID) > 6 {
+			sessID = sessID[:6]
+		}
+		prefix = fmt.Sprintf("%s %s %s",
+			tsStyle.Render(ts), tsStyle.Render(sessID), labelStyle.Render(typeLabel))
+	} else {
+		prefix = fmt.Sprintf("%s %s",
+			tsStyle.Render(ts), labelStyle.Render(typeLabel))
+	}
+
+	usedWidth := lipgloss.Width(prefix)
+	remaining := width - usedWidth - 1
+
+	// For groups with identical details, show the shared detail.
+	// Otherwise omit detail — the count badge is informative enough.
+	detail := ""
+	if g.AllSameDetail {
+		detail = shortenDetail(g.CommonDetail)
+	}
+
+	if remaining > 4 && detail != "" {
+		if len(detail) > remaining {
+			detail = detail[:remaining-3] + "..."
+		}
+		detailColor := ageColor(p.theme.TextDim, age, p.theme)
+		return prefix + " " + lipgloss.NewStyle().Foreground(detailColor).Render(detail)
+	}
+	return prefix
 }
 
 // renderEvent formats a single event line. In single-session mode the format
@@ -212,6 +310,60 @@ func ageColor(original color.Color, age time.Duration, theme *ui.Theme) color.Co
 	}
 	// 1-2 minutes: quite faded
 	return lipgloss.Color("#606060")
+}
+
+// groupEvents collapses consecutive events that share the same Type, ToolName,
+// and SessionID (within groupWindow) into grouped display entries.
+func groupEvents(events []data.Event) []groupedEvent {
+	if len(events) == 0 {
+		return nil
+	}
+	groups := make([]groupedEvent, 0, len(events))
+	cur := groupedEvent{
+		Representative: events[0],
+		Count:          1,
+		AllSameDetail:  true,
+		CommonDetail:   eventDetail(events[0]),
+	}
+
+	for i := 1; i < len(events); i++ {
+		e := events[i]
+		gap := e.Timestamp.Sub(cur.Representative.Timestamp)
+		if gap < 0 {
+			gap = -gap
+		}
+		sameGroup := e.Type == cur.Representative.Type &&
+			e.ToolName == cur.Representative.ToolName &&
+			e.SessionID == cur.Representative.SessionID &&
+			gap <= groupWindow
+
+		if sameGroup {
+			cur.Count++
+			cur.Representative = e // keep the most recent
+			if cur.AllSameDetail && eventDetail(e) != cur.CommonDetail {
+				cur.AllSameDetail = false
+			}
+		} else {
+			groups = append(groups, cur)
+			cur = groupedEvent{
+				Representative: e,
+				Count:          1,
+				AllSameDetail:  true,
+				CommonDetail:   eventDetail(e),
+			}
+		}
+	}
+	groups = append(groups, cur)
+	return groups
+}
+
+// eventDetail extracts the display detail for an event (same logic as renderEvent).
+func eventDetail(e data.Event) string {
+	d := e.ToolInput
+	if d == "" {
+		d = e.Text
+	}
+	return d
 }
 
 // shortenDetail trims verbose detail strings. For file paths it shows just
