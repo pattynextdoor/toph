@@ -7,21 +7,33 @@ import { HowItWorks } from "@/components/how-it-works";
 import { Stats } from "@/components/stats";
 import { OpenSource } from "@/components/open-source";
 import { Footer } from "@/components/footer";
-import { FadeInOnScroll } from "@/components/fade-in-on-scroll";
+import { AnimateIn } from "@/components/animate-in";
 
 export default function Home() {
   return (
     <main>
       <Hero />
-      <FadeInOnScroll>
+      <AnimateIn>
         <Positioning />
-      </FadeInOnScroll>
-      <Features />
-      <DataExplainer />
-      <EventStream />
-      <HowItWorks />
-      <Stats />
-      <OpenSource />
+      </AnimateIn>
+      <AnimateIn from="scale">
+        <Features />
+      </AnimateIn>
+      <AnimateIn from="bottom" delay={100}>
+        <DataExplainer />
+      </AnimateIn>
+      <AnimateIn from="scale">
+        <EventStream />
+      </AnimateIn>
+      <AnimateIn from="bottom">
+        <HowItWorks />
+      </AnimateIn>
+      <AnimateIn from="scale" delay={50}>
+        <Stats />
+      </AnimateIn>
+      <AnimateIn from="bottom">
+        <OpenSource />
+      </AnimateIn>
       <Footer />
     </main>
   );
