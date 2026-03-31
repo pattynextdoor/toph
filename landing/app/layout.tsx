@@ -20,6 +20,7 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://toph.dev"),
   title: "toph — btop for AI agents",
   description:
     "A terminal dashboard for AI coding agents. See what your agents are doing. Real-time activity feed, token tracking, cost estimation. Zero config.",
