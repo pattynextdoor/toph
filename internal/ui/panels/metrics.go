@@ -54,6 +54,9 @@ func (p *MetricsPanel) Render(sessions []*data.Session, burnRate float64, burnHi
 
 	title := p.theme.Title.Render("METRICS")
 	dimStyle := lipgloss.NewStyle().Foreground(p.theme.TextDim)
+	valStyle := lipgloss.NewStyle().Foreground(p.theme.BorderFocus).Bold(true)
+	greenStyle := lipgloss.NewStyle().Foreground(p.theme.Active)
+	amberStyle := lipgloss.NewStyle().Foreground(p.theme.Waiting)
 
 	var lines []string
 	lines = append(lines, title)
@@ -78,48 +81,61 @@ func (p *MetricsPanel) Render(sessions []*data.Session, burnRate float64, burnHi
 		s.RUnlock()
 	}
 
-	// Row 1: tokens in/out + burn rate
-	burnStr := ""
-	if burnRate > 0 {
-		burnStr = fmt.Sprintf("  %s", lipgloss.NewStyle().Foreground(p.theme.Subagent).Render(fmt.Sprintf("%.0f tok/s", burnRate)))
-	}
-	lines = append(lines, fmt.Sprintf("%s in  %s out%s",
-		lipgloss.NewStyle().Foreground(p.theme.Active).Render(formatTokens(totalIn)),
-		lipgloss.NewStyle().Foreground(p.theme.Waiting).Render(formatTokens(totalOut)),
-		burnStr))
+	// Tokens: styled values with dim labels
+	lines = append(lines, fmt.Sprintf("%s %s  %s %s",
+		dimStyle.Render("in"),
+		greenStyle.Render(formatTokens(totalIn)),
+		dimStyle.Render("out"),
+		amberStyle.Render(formatTokens(totalOut))))
 
-	// Row 2: cache ratio
+	// Burn rate
+	if burnRate > 0 {
+		lines = append(lines, fmt.Sprintf("%s %s",
+			dimStyle.Render("rate"),
+			lipgloss.NewStyle().Foreground(p.theme.Subagent).Bold(true).Render(fmt.Sprintf("%.0f tok/s", burnRate))))
+	}
+
+	// Cache ratio with visual indicator
 	if totalIn > 0 && totalCacheRead > 0 {
 		cacheRatio := float64(totalCacheRead) / float64(totalIn+totalCacheRead) * 100
-		lines = append(lines, dimStyle.Render(fmt.Sprintf("cache %s", formatTokens(totalCacheRead)))+
-			lipgloss.NewStyle().Foreground(p.theme.Active).Render(fmt.Sprintf(" %.0f%% hit", cacheRatio)))
+		ratioColor := p.theme.Active
+		if cacheRatio < 50 {
+			ratioColor = p.theme.Waiting
+		}
+		lines = append(lines, fmt.Sprintf("%s %s %s",
+			dimStyle.Render("cache"),
+			lipgloss.NewStyle().Foreground(ratioColor).Bold(true).Render(fmt.Sprintf("%.0f%%", cacheRatio)),
+			dimStyle.Render(formatTokens(totalCacheRead))))
 	}
 
-	// Row 3: cost + cost rate + sessions
+	// Cost with rate
 	cost := estimateCost(model, totalIn, totalOut, totalCacheRead, totalCacheWrite)
 	prefix := ""
 	if _, ok := pricing[model]; !ok {
 		prefix = "~"
 	}
-	costLine := fmt.Sprintf("cost %s%s",
+	costStr := fmt.Sprintf("%s %s%s",
+		dimStyle.Render("cost"),
 		dimStyle.Render(prefix),
-		lipgloss.NewStyle().Foreground(p.theme.Active).Render(fmt.Sprintf("$%.2f", cost)))
-	// Cost rate: extrapolate from burn rate to $/hr using output pricing
+		valStyle.Render(fmt.Sprintf("$%.2f", cost)))
 	if burnRate > 0 {
 		pr, ok := pricing[model]
 		if !ok {
 			pr = defaultPricing
 		}
-		costPerSec := burnRate * pr.Output / 1_000_000
-		costPerHr := costPerSec * 3600
-		costLine += dimStyle.Render(fmt.Sprintf("  $%.0f/hr", costPerHr))
+		costPerHr := burnRate * pr.Output / 1_000_000 * 3600
+		costStr += dimStyle.Render(fmt.Sprintf("  $%.0f/hr", costPerHr))
 	}
-	lines = append(lines, costLine)
+	lines = append(lines, costStr)
 
-	// Burn rate chart — use remaining vertical space
-	chartHeight := innerH - len(lines)
+	// Session count
+	lines = append(lines, fmt.Sprintf("%s %s",
+		dimStyle.Render("sessions"),
+		valStyle.Render(fmt.Sprintf("%d", len(sessions)))))
+
+	// Burn rate chart — fill remaining vertical space
+	chartHeight := innerH - len(lines) - 1 // -1 for chart label
 	if chartHeight >= 1 {
-		// Convert history array to slice
 		histSlice := make([]int, data.MetricsHistorySize)
 		for i, v := range burnHistory {
 			histSlice[i] = v
@@ -127,7 +143,14 @@ func (p *MetricsPanel) Render(sessions []*data.Session, burnRate float64, burnHi
 		chartWidth := innerW
 		chart := renderBrailleChart(histSlice, chartWidth, p.theme.Active)
 		if chart != "" {
-			lines = append(lines, dimStyle.Render("tok/s")+" "+dimStyle.Render("5m"))
+			// Chart label: left-aligned "throughput" with right-aligned time range
+			labelLeft := dimStyle.Render("throughput")
+			labelRight := dimStyle.Render("5m")
+			gap := innerW - lipgloss.Width(labelLeft) - lipgloss.Width(labelRight)
+			if gap < 1 {
+				gap = 1
+			}
+			lines = append(lines, fmt.Sprintf("%s%*s%s", labelLeft, gap, "", labelRight))
 			lines = append(lines, chart)
 		}
 	}

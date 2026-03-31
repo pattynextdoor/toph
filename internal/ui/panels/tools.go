@@ -5,21 +5,27 @@ import (
 	"sort"
 	"strings"
 
+	"charm.land/bubbles/v2/progress"
 	"charm.land/lipgloss/v2"
 	"github.com/pattynextdoor/toph/internal/ui"
 )
 
 // ToolsPanel renders the tool usage bar chart (Panel 5), showing horizontal
-// bars for each tool sorted by call frequency. Bars scale proportionally
-// to the most-used tool.
+// bars for each tool sorted by call frequency.
 type ToolsPanel struct {
-	theme   *ui.Theme
-	focused bool
+	theme    *ui.Theme
+	focused  bool
+	progress progress.Model
 }
 
 // NewToolsPanel creates a ToolsPanel bound to the given theme.
 func NewToolsPanel(theme *ui.Theme) *ToolsPanel {
-	return &ToolsPanel{theme: theme}
+	p := progress.New(
+		progress.WithColors(theme.ToolUse),
+		progress.WithoutPercentage(),
+		progress.WithFillCharacters('━', '╌'),
+	)
+	return &ToolsPanel{theme: theme, progress: p}
 }
 
 func (p *ToolsPanel) SetFocused(f bool) { p.focused = f }
@@ -52,19 +58,21 @@ func (p *ToolsPanel) Render(toolCounts map[string]int, width, height int) string
 		count int
 	}
 	var entries []toolEntry
+	var total int
 	for name, count := range toolCounts {
 		entries = append(entries, toolEntry{name, count})
+		total += count
 	}
 	sort.Slice(entries, func(i, j int) bool {
 		if entries[i].count != entries[j].count {
 			return entries[i].count > entries[j].count
 		}
-		return entries[i].name < entries[j].name // stable tiebreaker
+		return entries[i].name < entries[j].name
 	})
 
 	maxCount := entries[0].count
 
-	// Find the longest tool name (capped at 8 chars to save space).
+	// Find the longest tool name (capped at 8 chars)
 	maxNameLen := 0
 	for _, e := range entries {
 		n := len(e.name)
@@ -76,24 +84,24 @@ func (p *ToolsPanel) Render(toolCounts map[string]int, width, height int) string
 		maxNameLen = 8
 	}
 
-	// label = "Name  N " — dynamic name width + count
-	labelWidth := maxNameLen + 1 + 3 + 1 // name + space + count(3) + space
-
+	// Label takes: name + space + count(3) + space + percent(4) + space
+	labelWidth := maxNameLen + 1 + 3 + 1 + 4 + 1
 	barWidth := innerW - labelWidth
-	if barWidth < 3 {
-		barWidth = 3
+	if barWidth < 4 {
+		barWidth = 4
 	}
-
-	// Reserve space for label, then give remaining to bar.
-	// Use half the inner width as max bar length to guarantee no overflow.
-	maxBarLen := (innerW - labelWidth) / 2
-	if maxBarLen < 2 {
-		maxBarLen = 2
+	// Cap at half width to avoid overflow from wide chars
+	if barWidth > innerW/2 {
+		barWidth = innerW / 2
 	}
 
 	maxRows := innerH - 1
 	nameFmt := fmt.Sprintf("%%-%ds", maxNameLen)
-	barStyle := lipgloss.NewStyle().Foreground(p.theme.ToolUse)
+	dimStyle := lipgloss.NewStyle().Foreground(p.theme.TextDim)
+	countStyle := lipgloss.NewStyle().Foreground(p.theme.BorderFocus).Bold(true)
+
+	p.progress.SetWidth(barWidth)
+
 	for i, e := range entries {
 		if i >= maxRows {
 			break
@@ -102,12 +110,17 @@ func (p *ToolsPanel) Render(toolCounts map[string]int, width, height int) string
 		if len(name) > maxNameLen {
 			name = name[:maxNameLen]
 		}
-		barLen := e.count * maxBarLen / maxCount
-		if barLen < 1 {
-			barLen = 1
-		}
-		label := fmt.Sprintf(nameFmt+" %3d %s", name, e.count,
-			barStyle.Render(strings.Repeat("█", barLen)))
+
+		pct := float64(e.count) / float64(maxCount)
+		pctOfTotal := float64(e.count) / float64(total) * 100
+
+		bar := p.progress.ViewAs(pct)
+		label := fmt.Sprintf("%s %s %s %s",
+			dimStyle.Render(fmt.Sprintf(nameFmt, name)),
+			countStyle.Render(fmt.Sprintf("%3d", e.count)),
+			dimStyle.Render(fmt.Sprintf("%2.0f%%", pctOfTotal)),
+			bar,
+		)
 		lines = append(lines, label)
 	}
 
