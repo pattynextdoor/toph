@@ -143,17 +143,17 @@ func (p *MetricsPanel) Render(sessions []*data.Session, burnRate float64, burnHi
 		dimStyle.Render("sessions"),
 		valStyle.Render(fmt.Sprintf("%d", len(sessions)))))
 
-	// Burn rate chart — fill remaining vertical space
+	// Throughput chart — fill ALL remaining vertical space with a btop-style
+	// multi-row area chart. This is the visual anchor of the panel.
 	chartHeight := innerH - len(lines) - 1 // -1 for chart label
-	if chartHeight >= 1 {
+	if chartHeight >= 2 {
 		histSlice := make([]int, data.MetricsHistorySize)
 		for i, v := range burnHistory {
 			histSlice[i] = v
 		}
 		chartWidth := innerW
-		chart := renderBrailleChart(histSlice, chartWidth, p.theme.Active)
+		chart := renderChart(histSlice, chartWidth, chartHeight, p.theme.Active, p.theme.TextDim)
 		if chart != "" {
-			// Chart label: left-aligned "throughput" with right-aligned time range
 			labelLeft := dimStyle.Render("throughput")
 			labelRight := dimStyle.Render("5m")
 			gap := innerW - lipgloss.Width(labelLeft) - lipgloss.Width(labelRight)

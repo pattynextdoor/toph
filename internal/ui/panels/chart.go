@@ -7,29 +7,103 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// Braille dot patterns for 2-high charts. Each braille cell is 2 columns x 4 rows
-// of dots. For a single-column chart we use the left column only:
-//
-//	Row 0: ⠁ (dot 1)
-//	Row 1: ⠂ (dot 2)
-//	Row 2: ⠄ (dot 3)
-//	Row 3: ⡀ (dot 7)
-//
-// For a 2-row chart (8 vertical levels), the top row uses dots 1-4 of one cell
-// and the bottom row uses dots 1-4 of the cell below.
+// barChars are block elements from empty to full (8 levels per cell row).
+var barChars = []rune{' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
 
-// renderBrailleChart renders a single-row braille sparkline chart from a slice
-// of values. Each value maps to a braille character with 1-8 levels of fill.
-// Width is the number of braille characters to render.
+const levelsPerRow = 8 // number of distinct fill levels per character cell
+
+// renderChart renders a multi-row bar chart that fills the given height.
+// Each column represents one data point. Columns fill from the bottom up
+// using Unicode block elements, giving (height * 8) levels of vertical
+// resolution. This is the btop-style area chart.
+func renderChart(values []int, width, height int, col, dimCol color.Color) string {
+	if width <= 0 || height <= 0 || len(values) == 0 {
+		return ""
+	}
+
+	// Resample to fit width
+	sampled := resample(values, width)
+
+	// Find max — if no data, show an empty chart frame
+	max := 0
+	nonZero := 0
+	for _, v := range sampled {
+		if v > max {
+			max = v
+		}
+		if v > 0 {
+			nonZero++
+		}
+	}
+
+	if max == 0 || nonZero < 2 {
+		return "" // not enough data
+	}
+
+	totalLevels := height * levelsPerRow
+
+	// For each column, compute how many levels it fills (0 to totalLevels)
+	colLevels := make([]int, len(sampled))
+	for i, v := range sampled {
+		colLevels[i] = v * totalLevels / max
+		if colLevels[i] > totalLevels {
+			colLevels[i] = totalLevels
+		}
+	}
+
+	barStyle := lipgloss.NewStyle().Foreground(col)
+	emptyStyle := lipgloss.NewStyle().Foreground(dimCol)
+
+	// Render row by row, top to bottom
+	var rows []string
+	for row := 0; row < height; row++ {
+		// This row represents levels from rowBottom to rowTop
+		rowBottom := (height - 1 - row) * levelsPerRow
+		var b strings.Builder
+
+		for _, level := range colLevels {
+			fillInRow := level - rowBottom
+			if fillInRow <= 0 {
+				// Column doesn't reach this row at all
+				b.WriteRune(' ')
+			} else if fillInRow >= levelsPerRow {
+				// Column completely fills this row
+				b.WriteRune('█')
+			} else {
+				// Partial fill — use the appropriate block character
+				b.WriteRune(barChars[fillInRow])
+			}
+		}
+
+		line := b.String()
+		// Style: filled chars get the main color, but we render the whole
+		// line at once. Use the bar color for non-space chars.
+		// Simple approach: render the full line in bar color — spaces are invisible anyway.
+		hasContent := false
+		for _, r := range line {
+			if r != ' ' {
+				hasContent = true
+				break
+			}
+		}
+		if hasContent {
+			rows = append(rows, barStyle.Render(line))
+		} else {
+			rows = append(rows, emptyStyle.Render(line))
+		}
+	}
+
+	return strings.Join(rows, "\n")
+}
+
+// renderBrailleChart renders a single-row sparkline chart (kept for sparklines).
 func renderBrailleChart(values []int, width int, col color.Color) string {
 	if width <= 0 || len(values) == 0 {
 		return ""
 	}
 
-	// Resample values to fit the desired width
 	sampled := resample(values, width)
 
-	// Find max for scaling — if all zeros, nothing to render
 	max := 0
 	nonZero := 0
 	for _, v := range sampled {
@@ -41,10 +115,9 @@ func renderBrailleChart(values []int, width int, col color.Color) string {
 		}
 	}
 	if max == 0 || nonZero < 2 {
-		return "" // not enough data to render a meaningful chart
+		return ""
 	}
 
-	// Braille characters for 8 vertical levels (empty to full)
 	bars := []rune{' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇'}
 
 	var b strings.Builder
@@ -62,14 +135,12 @@ func renderBrailleChart(values []int, width int, col color.Color) string {
 // resample maps an input slice to a target length by averaging adjacent values.
 func resample(values []int, targetLen int) []int {
 	if len(values) <= targetLen {
-		// Pad left with zeros
 		result := make([]int, targetLen)
 		offset := targetLen - len(values)
 		copy(result[offset:], values)
 		return result
 	}
 
-	// Downsample by averaging
 	result := make([]int, targetLen)
 	ratio := float64(len(values)) / float64(targetLen)
 	for i := 0; i < targetLen; i++ {
