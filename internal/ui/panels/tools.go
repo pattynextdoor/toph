@@ -90,16 +90,25 @@ func (p *ToolsPanel) Render(toolCounts map[string]int, width, height int) string
 		if i >= maxRows {
 			break
 		}
-		barLen := e.count * barWidth / maxCount
-		if barLen < 1 {
-			barLen = 1
-		}
-		bar := strings.Repeat("█", barLen)
 		name := e.name
 		if len(name) > maxNameLen {
 			name = name[:maxNameLen]
 		}
 		label := fmt.Sprintf(nameFmt+" %3d ", name, e.count)
+		// Clamp bar to remaining space after the label
+		remaining := innerW - len(label)
+		if remaining < 1 {
+			lines = append(lines, label)
+			continue
+		}
+		barLen := e.count * remaining / maxCount
+		if barLen < 1 {
+			barLen = 1
+		}
+		if barLen > remaining {
+			barLen = remaining
+		}
+		bar := strings.Repeat("█", barLen)
 		lines = append(lines, label+lipgloss.NewStyle().Foreground(p.theme.ToolUse).Render(bar))
 	}
 
