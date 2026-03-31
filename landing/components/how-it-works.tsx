@@ -8,7 +8,7 @@ const steps = [
   {
     number: "2",
     title: "Run your agents",
-    command: "claude code",
+    command: "claude",
     description:
       "Start Claude Code sessions as usual. Nothing changes about your workflow.",
   },
