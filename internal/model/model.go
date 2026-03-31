@@ -206,6 +206,26 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Enter drills into the detail panel when the sessions list is focused.
+	if isEnter(msg) && m.focusedPanel == PanelSessions {
+		m.setFocus(PanelDetail)
+		return m, nil
+	}
+
+	// r forces a refresh: scroll activity to bottom and re-check session states.
+	if isRefresh(msg) {
+		m.activity.ScrollToBottom()
+		m.manager.CheckSessionStates()
+		return m, nil
+	}
+
+	// Ctrl+L clears the activity feed entirely.
+	if isClearFeed(msg) {
+		m.manager.ClearFeed()
+		m.activity.ScrollToBottom()
+		return m, nil
+	}
+
 	// Route navigation keys to the currently focused panel.
 	switch m.focusedPanel {
 	case PanelSessions:
