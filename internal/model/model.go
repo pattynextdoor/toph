@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/pattynextdoor/toph/internal/data"
+	"github.com/pattynextdoor/toph/internal/notify"
 	"github.com/pattynextdoor/toph/internal/ui"
 	"github.com/pattynextdoor/toph/internal/ui/panels"
 )
@@ -33,6 +34,7 @@ type EventMsg data.Event
 // per frame.
 type Model struct {
 	manager   *data.Manager
+	notifier  *notify.Notifier
 	theme     *ui.Theme
 	layout    ui.Layout
 	statusBar *ui.StatusBar
@@ -60,6 +62,7 @@ func New(manager *data.Manager) Model {
 	theme := ui.DefaultTheme()
 	return Model{
 		manager:   manager,
+		notifier:  notify.New(60 * time.Second),
 		theme:     theme,
 		statusBar: ui.NewStatusBar(theme),
 		sessions:  panels.NewSessionsPanel(theme),
@@ -97,7 +100,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Check for sessions that may have transitioned to waiting state
 		// (e.g., tool_use proposed but no follow-up within the timeout).
-		m.manager.CheckSessionStates()
+		// Fire desktop notifications for any that just started waiting.
+		for _, w := range m.manager.CheckSessionStates() {
+			m.notifier.SessionWaiting(w.ID, w.Project)
+		}
+
+		// Sample token burn rates for sparklines (~every 10s).
+		m.manager.SampleTokenRates()
 
 		return m, tick()
 

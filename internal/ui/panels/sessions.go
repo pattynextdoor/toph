@@ -76,7 +76,42 @@ func (p *SessionsPanel) Render(sessions []*data.Session, width, height int) stri
 	return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render(content)
 }
 
-// renderSessionRow formats a single session as: icon project branch age
+// sparkChars maps token rate values to braille characters, from lowest (dot)
+// to highest (full block). Eight levels give smooth visual resolution.
+var sparkChars = []rune{'\u2840', '\u2844', '\u2846', '\u2847', '\u28C7', '\u28E7', '\u28F7', '\u28FF'}
+
+// renderSparkline renders an 8-character braille sparkline from a token
+// history array. Active sessions get green sparklines; all-zero histories
+// render as dim dots so the column width stays stable.
+func renderSparkline(history [data.SparklineSamples]int, theme *ui.Theme) string {
+	// Find max for scaling.
+	max := 1
+	allZero := true
+	for _, v := range history {
+		if v > max {
+			max = v
+		}
+		if v > 0 {
+			allZero = false
+		}
+	}
+
+	if allZero {
+		return lipgloss.NewStyle().Foreground(theme.Idle).Render(string([]rune{
+			sparkChars[0], sparkChars[0], sparkChars[0], sparkChars[0],
+			sparkChars[0], sparkChars[0], sparkChars[0], sparkChars[0],
+		}))
+	}
+
+	var result strings.Builder
+	for _, v := range history {
+		idx := v * (len(sparkChars) - 1) / max
+		result.WriteRune(sparkChars[idx])
+	}
+	return lipgloss.NewStyle().Foreground(theme.Active).Render(result.String())
+}
+
+// renderSessionRow formats a single session as: icon project branch sparkline age
 func (p *SessionsPanel) renderSessionRow(s *data.Session, selected bool, width int) string {
 	var icon string
 	var iconColor color.Color
@@ -122,12 +157,26 @@ func (p *SessionsPanel) renderSessionRow(s *data.Session, selected bool, width i
 
 	age := formatDuration(time.Since(s.UpdatedAt))
 
-	row := fmt.Sprintf("%s %s %s %s",
-		iconStyle.Render(icon),
-		project,
-		lipgloss.NewStyle().Foreground(p.theme.TextDim).Render(branch),
-		lipgloss.NewStyle().Foreground(p.theme.TextDim).Render(age),
-	)
+	// Only render sparkline if there's enough horizontal space (icon + project
+	// + branch + sparkline(8) + age + spaces need ~30+ cols).
+	var row string
+	if width > 30 {
+		sparkline := renderSparkline(s.GetTokenHistory(), p.theme)
+		row = fmt.Sprintf("%s %s %s %s %s",
+			iconStyle.Render(icon),
+			project,
+			lipgloss.NewStyle().Foreground(p.theme.TextDim).Render(branch),
+			sparkline,
+			lipgloss.NewStyle().Foreground(p.theme.TextDim).Render(age),
+		)
+	} else {
+		row = fmt.Sprintf("%s %s %s %s",
+			iconStyle.Render(icon),
+			project,
+			lipgloss.NewStyle().Foreground(p.theme.TextDim).Render(branch),
+			lipgloss.NewStyle().Foreground(p.theme.TextDim).Render(age),
+		)
+	}
 
 	if selected {
 		row = lipgloss.NewStyle().

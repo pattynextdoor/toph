@@ -52,6 +52,11 @@ func (s SessionStatus) String() string {
 	}
 }
 
+// SparklineSamples is the number of historical data points tracked for
+// per-session token burn rate sparklines. At a 10-second sample interval
+// this covers ~80 seconds of history.
+const SparklineSamples = 8
+
 // Session holds the accumulated state for a single Claude Code session,
 // built up incrementally as Events arrive.
 type Session struct {
@@ -81,6 +86,12 @@ type Session struct {
 	LastStopReason string
 	LastHadToolUse bool      // true if the last assistant message contained tool_use blocks
 	LastEventAt    time.Time // wall-clock time when the last event arrived (for timeout detection)
+
+	// TokenHistory tracks output tokens per sample period for sparklines.
+	// Each entry is the delta of output tokens received in that ~10s window.
+	TokenHistory     [SparklineSamples]int
+	tokenHistoryIdx  int
+	lastSampleTokens int // TotalOutputTokens at last sample
 }
 
 // Subagent represents a child agent spawned by a session.
@@ -200,6 +211,33 @@ func (s *Session) getOrCreateSubagent(agentID string) *Subagent {
 	return sa
 }
 
+// SampleTokenRate records the current output-token delta into the history ring
+// buffer. Call this periodically (e.g., every 10 seconds) to build the sparkline.
+func (s *Session) SampleTokenRate() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delta := s.TotalOutputTokens - s.lastSampleTokens
+	if delta < 0 {
+		delta = 0
+	}
+	s.TokenHistory[s.tokenHistoryIdx] = delta
+	s.tokenHistoryIdx = (s.tokenHistoryIdx + 1) % SparklineSamples
+	s.lastSampleTokens = s.TotalOutputTokens
+}
+
+// GetTokenHistory returns the token history in chronological order (oldest first).
+func (s *Session) GetTokenHistory() [SparklineSamples]int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var result [SparklineSamples]int
+	for i := 0; i < SparklineSamples; i++ {
+		idx := (s.tokenHistoryIdx + i) % SparklineSamples
+		result[i] = s.TokenHistory[idx]
+	}
+	return result
+}
+
 // waitingTimeout is how long after the last event we wait before considering
 // an active session with pending tool use to be "waiting for permission."
 const waitingTimeout = 15 * time.Second
@@ -214,16 +252,19 @@ const idleTimeout = 5 * time.Minute
 //
 // The waiting check fires first because it's more specific (the user likely
 // needs to approve a tool call). Call this periodically (e.g., on every tick).
-func (s *Session) CheckStale() {
+//
+// Returns true if the session just transitioned to StatusWaiting on this call,
+// which signals that a desktop notification should be sent.
+func (s *Session) CheckStale() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if s.Status != StatusActive {
-		return
+		return false
 	}
 
 	if s.LastEventAt.IsZero() {
-		return
+		return false
 	}
 
 	elapsed := time.Since(s.LastEventAt)
@@ -231,11 +272,12 @@ func (s *Session) CheckStale() {
 	// Check for permission-waiting first (more specific).
 	if s.LastHadToolUse && elapsed > waitingTimeout {
 		s.Status = StatusWaiting
-		return
+		return true
 	}
 
 	// Check for idle (general inactivity).
 	if elapsed > idleTimeout {
 		s.Status = StatusIdle
 	}
+	return false
 }

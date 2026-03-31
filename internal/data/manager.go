@@ -18,9 +18,10 @@ const (
 // Manager owns all session state and the global activity feed.
 // It is the central data store that the Bubble Tea model reads from.
 type Manager struct {
-	mu       sync.RWMutex
-	sessions map[string]*Session
-	feed     *RingBuffer
+	mu            sync.RWMutex
+	sessions      map[string]*Session
+	feed          *RingBuffer
+	sampleCounter int
 }
 
 // NewManager creates a Manager with an empty session map and a 1,000-event ring buffer.
@@ -140,14 +141,47 @@ func sortSessionsByActionability(sessions []*Session) {
 	})
 }
 
+// SessionWaitingInfo identifies a session that just transitioned to waiting.
+type SessionWaitingInfo struct {
+	ID      string
+	Project string
+}
+
 // CheckSessionStates runs periodic state checks on all sessions, such as
 // detecting permission-waiting timeouts and idle sessions. Called once per
-// tick from the model.
-func (m *Manager) CheckSessionStates() {
+// tick from the model. Returns info for sessions that just transitioned to
+// StatusWaiting so the caller can fire desktop notifications.
+func (m *Manager) CheckSessionStates() []SessionWaitingInfo {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var waiting []SessionWaitingInfo
+	for _, s := range m.sessions {
+		if s.CheckStale() {
+			s.mu.RLock()
+			waiting = append(waiting, SessionWaitingInfo{
+				ID:      s.ID,
+				Project: s.Project,
+			})
+			s.mu.RUnlock()
+		}
+	}
+	return waiting
+}
+
+// SampleTokenRates samples token burn rates for all sessions' sparklines.
+// Call every tick; internally it only fires every ~300 ticks (10s at 30fps).
+func (m *Manager) SampleTokenRates() {
+	m.sampleCounter++
+	if m.sampleCounter < 300 {
+		return
+	}
+	m.sampleCounter = 0
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	for _, s := range m.sessions {
-		s.CheckStale()
+		s.SampleTokenRate()
 	}
 }
 
