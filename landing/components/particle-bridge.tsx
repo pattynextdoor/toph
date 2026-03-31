@@ -1,26 +1,20 @@
 "use client";
 
-import { useRef, useMemo, useCallback, useEffect, useState } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { EffectComposer, Bloom } from "@react-three/postprocessing";
-import * as THREE from "three";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 // =============================================================================
 // TUNING CONSTANTS
 // =============================================================================
-const AMBIENT_PARTICLE_COUNT = 60;
-const BURST_PARTICLE_COUNT = 5;
-const PARTICLE_SPEED = 1.2;
-const AMBIENT_SPEED = 0.3;
-const PARTICLE_SIZE = 3.0;
-const AMBIENT_SIZE = 1.5;
-const ARC_HEIGHT = 0.8;
-const TRAIL_LENGTH = 0.15;
-const BLOOM_INTENSITY = 2.0;
-const BLOOM_THRESHOLD = 0.1;
+const AMBIENT_COUNT = 25;
+const BURST_COUNT = 4;
+const PARTICLE_SPEED = 2.5; // pixels per frame
+const AMBIENT_SPEED = 0.8;
+const PARTICLE_RADIUS = 2.5;
+const AMBIENT_RADIUS = 1.2;
+const TRAIL_ALPHA = 0.92; // lower = longer trails (0-1)
+const GLOW_SIZE = 12;
 
-// Color map for tool types
-const TOOL_PARTICLE_COLORS: Record<string, string> = {
+const TOOL_COLORS: Record<string, string> = {
   Edit: "#87D7D7",
   Bash: "#87D787",
   Read: "#71717a",
@@ -31,204 +25,214 @@ const TOOL_PARTICLE_COLORS: Record<string, string> = {
   TaskCreate: "#FFD787",
 };
 
-// =============================================================================
-// Particle system — manages both ambient and burst particles
-// =============================================================================
-
 interface Particle {
   x: number;
   y: number;
-  progress: number; // 0 to 1 across the bridge
+  targetX: number;
+  startX: number;
+  startY: number;
+  targetY: number;
+  progress: number;
   speed: number;
-  color: THREE.Color;
-  size: number;
+  color: string;
+  radius: number;
   opacity: number;
   isBurst: boolean;
-  arcOffset: number; // randomize arc height per particle
-  yOffset: number;   // vertical target variation
 }
 
-function ParticleSystem({ events }: { events: { tool: string; id: number }[] }) {
-  const pointsRef = useRef<THREE.Points>(null);
+// =============================================================================
+// Component
+// =============================================================================
+export function ParticleBridge({ events }: { events: { tool: string; id: number }[] }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<Particle[]>([]);
   const lastEventIdRef = useRef(-1);
-  const { viewport } = useThree();
+  const animFrameRef = useRef<number>(0);
+  const [reducedMotion, setReducedMotion] = useState(false);
 
-  // The bridge goes from ~-3 to ~3 in NDC-ish coordinates
-  const bridgeLeft = -viewport.width / 2 * 0.15;
-  const bridgeRight = viewport.width / 2 * 0.15;
-  const bridgeWidth = bridgeRight - bridgeLeft;
+  // Get the bridge gap coordinates (called on resize)
+  const getBridgeBounds = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      width: rect.width,
+      height: rect.height,
+      // Particles flow from left ~15% to right ~85% of the canvas
+      startX: rect.width * 0.05,
+      endX: rect.width * 0.95,
+    };
+  }, []);
 
-  // Initialize ambient particles
-  useEffect(() => {
+  // Spawn ambient particles
+  const spawnAmbients = useCallback(() => {
+    const bounds = getBridgeBounds();
+    if (!bounds) return;
+
     const ambients: Particle[] = [];
-    for (let i = 0; i < AMBIENT_PARTICLE_COUNT; i++) {
+    for (let i = 0; i < AMBIENT_COUNT; i++) {
+      const startX = bounds.startX;
+      const endX = bounds.endX;
+      const y = bounds.height * (0.15 + Math.random() * 0.7);
+      const targetY = y + (Math.random() - 0.5) * 40;
+
       ambients.push({
-        x: 0,
-        y: 0,
+        x: startX + Math.random() * (endX - startX),
+        y,
+        startX,
+        startY: y,
+        targetX: endX,
+        targetY,
         progress: Math.random(),
         speed: AMBIENT_SPEED * (0.5 + Math.random() * 1.0),
-        color: new THREE.Color("#87AFFF").multiplyScalar(0.4),
-        size: AMBIENT_SIZE * (0.5 + Math.random()),
-        opacity: 0.15 + Math.random() * 0.15,
+        color: "#87AFFF",
+        radius: AMBIENT_RADIUS * (0.6 + Math.random() * 0.8),
+        opacity: 0.15 + Math.random() * 0.1,
         isBurst: false,
-        arcOffset: (Math.random() - 0.5) * 2,
-        yOffset: (Math.random() - 0.5) * 3,
       });
     }
     particlesRef.current = ambients;
-  }, []);
+  }, [getBridgeBounds]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (mq.matches) {
+      setReducedMotion(true);
+      return;
+    }
+    spawnAmbients();
+  }, [spawnAmbients]);
 
   // Spawn burst particles when new events arrive
   useEffect(() => {
-    if (events.length === 0) return;
+    if (reducedMotion || events.length === 0) return;
     const latest = events[events.length - 1];
     if (latest.id <= lastEventIdRef.current) return;
     lastEventIdRef.current = latest.id;
 
-    const toolColor = TOOL_PARTICLE_COLORS[latest.tool] || "#87AFFF";
+    const bounds = getBridgeBounds();
+    if (!bounds) return;
 
-    for (let i = 0; i < BURST_PARTICLE_COUNT; i++) {
+    const color = TOOL_COLORS[latest.tool] || "#87AFFF";
+
+    for (let i = 0; i < BURST_COUNT; i++) {
+      const startY = bounds.height * (0.2 + Math.random() * 0.6);
+      const targetY = bounds.height * (0.15 + Math.random() * 0.7);
+
       particlesRef.current.push({
-        x: 0,
-        y: 0,
+        x: bounds.startX,
+        y: startY,
+        startX: bounds.startX,
+        startY,
+        targetX: bounds.endX,
+        targetY,
         progress: 0,
-        speed: PARTICLE_SPEED * (0.8 + Math.random() * 0.4),
-        color: new THREE.Color(toolColor),
-        size: PARTICLE_SIZE * (0.8 + Math.random() * 0.4),
-        opacity: 0.8 + Math.random() * 0.2,
+        speed: PARTICLE_SPEED * (0.7 + Math.random() * 0.6),
+        color,
+        radius: PARTICLE_RADIUS * (0.8 + Math.random() * 0.4),
+        opacity: 0.7 + Math.random() * 0.3,
         isBurst: true,
-        arcOffset: (Math.random() - 0.5) * 1.5,
-        yOffset: (Math.random() - 0.5) * 2,
       });
     }
-  }, [events]);
+  }, [events, reducedMotion, getBridgeBounds]);
 
-  // Geometry buffers
-  const maxParticles = AMBIENT_PARTICLE_COUNT + 200; // headroom for bursts
-  const positions = useMemo(() => new Float32Array(maxParticles * 3), [maxParticles]);
-  const colors = useMemo(() => new Float32Array(maxParticles * 3), [maxParticles]);
-  const sizes = useMemo(() => new Float32Array(maxParticles), [maxParticles]);
-
-  useFrame((_, delta) => {
-    if (!pointsRef.current) return;
-
-    const particles = particlesRef.current;
-    let aliveCount = 0;
-
-    for (let i = particles.length - 1; i >= 0; i--) {
-      const p = particles[i];
-      p.progress += p.speed * delta;
-
-      if (p.isBurst && p.progress > 1) {
-        // Remove dead burst particles
-        particles.splice(i, 1);
-        continue;
-      }
-
-      // Wrap ambient particles
-      if (!p.isBurst && p.progress > 1) {
-        p.progress = 0;
-        p.yOffset = (Math.random() - 0.5) * 3;
-        p.arcOffset = (Math.random() - 0.5) * 2;
-      }
-
-      // Calculate position along the arc
-      const t = p.progress;
-      const x = bridgeLeft + t * bridgeWidth;
-      const arcY = Math.sin(t * Math.PI) * ARC_HEIGHT * (1 + p.arcOffset * 0.3);
-      const y = p.yOffset + arcY;
-
-      // Fade in/out
-      let alpha = p.opacity;
-      if (t < 0.1) alpha *= t / 0.1;
-      if (t > 0.85) alpha *= (1 - t) / 0.15;
-
-      positions[aliveCount * 3] = x;
-      positions[aliveCount * 3 + 1] = y;
-      positions[aliveCount * 3 + 2] = 0;
-      colors[aliveCount * 3] = p.color.r * alpha;
-      colors[aliveCount * 3 + 1] = p.color.g * alpha;
-      colors[aliveCount * 3 + 2] = p.color.b * alpha;
-      sizes[aliveCount] = p.size;
-      aliveCount++;
-    }
-
-    // Zero out unused slots
-    for (let i = aliveCount; i < maxParticles; i++) {
-      positions[i * 3] = 0;
-      positions[i * 3 + 1] = 0;
-      positions[i * 3 + 2] = -100; // behind camera
-      sizes[i] = 0;
-    }
-
-    const geo = pointsRef.current.geometry;
-    geo.attributes.position.needsUpdate = true;
-    geo.attributes.color.needsUpdate = true;
-    geo.attributes.size.needsUpdate = true;
-    geo.setDrawRange(0, aliveCount);
-  });
-
-  return (
-    <points ref={pointsRef}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-        <bufferAttribute attach="attributes-color" args={[colors, 3]} />
-        <bufferAttribute attach="attributes-size" args={[sizes, 1]} />
-      </bufferGeometry>
-      <pointsMaterial
-        size={PARTICLE_SIZE}
-        vertexColors
-        transparent
-        opacity={1}
-        sizeAttenuation={false}
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-      />
-    </points>
-  );
-}
-
-// =============================================================================
-// Scene wrapper
-// =============================================================================
-function BridgeScene({ events }: { events: { tool: string; id: number }[] }) {
-  return (
-    <>
-      <ParticleSystem events={events} />
-      <EffectComposer>
-        <Bloom
-          intensity={BLOOM_INTENSITY}
-          luminanceThreshold={BLOOM_THRESHOLD}
-          luminanceSmoothing={0.9}
-        />
-      </EffectComposer>
-    </>
-  );
-}
-
-// =============================================================================
-// Exported overlay component
-// =============================================================================
-export function ParticleBridge({ events }: { events: { tool: string; id: number }[] }) {
-  const [reducedMotion, setReducedMotion] = useState(false);
-
+  // Animation loop
   useEffect(() => {
-    setReducedMotion(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-  }, []);
+    if (reducedMotion) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const resizeCanvas = () => {
+      const parent = canvas.parentElement;
+      if (!parent) return;
+      const rect = parent.getBoundingClientRect();
+      canvas.width = rect.width * window.devicePixelRatio;
+      canvas.height = rect.height * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = `${rect.height}px`;
+    };
+
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas);
+
+    const animate = () => {
+      const w = canvas.width / window.devicePixelRatio;
+      const h = canvas.height / window.devicePixelRatio;
+
+      // Fade previous frame for trail effect
+      ctx.fillStyle = `rgba(9, 9, 11, ${TRAIL_ALPHA})`;
+      ctx.fillRect(0, 0, w, h);
+
+      const particles = particlesRef.current;
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.progress += p.speed / (p.targetX - p.startX);
+
+        if (p.isBurst && p.progress > 1) {
+          particles.splice(i, 1);
+          continue;
+        }
+
+        // Wrap ambient particles
+        if (!p.isBurst && p.progress > 1) {
+          p.progress = 0;
+          p.startY = h * (0.15 + Math.random() * 0.7);
+          p.targetY = p.startY + (Math.random() - 0.5) * 40;
+        }
+
+        const t = p.progress;
+        // Smooth easing
+        const easedT = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+        // Horizontal: linear left to right
+        p.x = p.startX + (p.targetX - p.startX) * easedT;
+
+        // Vertical: interpolate with a slight arc
+        const arcHeight = -30 * (p.isBurst ? 1.5 : 0.5);
+        const arc = Math.sin(t * Math.PI) * arcHeight;
+        p.y = p.startY + (p.targetY - p.startY) * t + arc;
+
+        // Fade in/out
+        let alpha = p.opacity;
+        if (t < 0.1) alpha *= t / 0.1;
+        if (t > 0.8) alpha *= (1 - t) / 0.2;
+
+        // Draw glow
+        if (p.isBurst) {
+          const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, GLOW_SIZE);
+          gradient.addColorStop(0, p.color + Math.round(alpha * 80).toString(16).padStart(2, "0"));
+          gradient.addColorStop(1, p.color + "00");
+          ctx.fillStyle = gradient;
+          ctx.fillRect(p.x - GLOW_SIZE, p.y - GLOW_SIZE, GLOW_SIZE * 2, GLOW_SIZE * 2);
+        }
+
+        // Draw core
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = p.color + Math.round(alpha * 255).toString(16).padStart(2, "0");
+        ctx.fill();
+      }
+
+      animFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    animFrameRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(animFrameRef.current);
+      window.removeEventListener("resize", resizeCanvas);
+    };
+  }, [reducedMotion]);
 
   if (reducedMotion) return null;
 
   return (
-    <div className="absolute inset-0 z-10 pointer-events-none">
-      <Canvas
-        camera={{ position: [0, 0, 10], fov: 50 }}
-        dpr={[1, 1.5]}
-        gl={{ antialias: false, alpha: true }}
-        style={{ background: "transparent" }}
-      >
-        <BridgeScene events={events} />
-      </Canvas>
+    <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden">
+      <canvas ref={canvasRef} className="w-full h-full" />
     </div>
   );
 }
