@@ -260,7 +260,8 @@ func (m Model) View() tea.View {
 	if m.filtering || m.filterText != "" {
 		statusBar = m.statusBar.RenderFilter(m.width, m.filterText, m.filtering)
 	} else {
-		statusBar = m.statusBar.Render(m.width, len(activeSessions), "jsonl", true)
+		conflictCount := m.manager.ConflictCount()
+		statusBar = m.statusBar.Render(m.width, len(activeSessions), "jsonl", true, conflictCount)
 	}
 
 	if m.help.Visible {

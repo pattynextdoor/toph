@@ -142,6 +142,12 @@ func (p *ActivityPanel) renderEvent(e data.Event, width int) string {
 		typeLabel = e.Type.String()
 	}
 
+	// Override color for file conflicts — red with warning prefix
+	if e.Conflicted {
+		typeColor = p.theme.Error
+		typeLabel = "!" + typeLabel
+	}
+
 	// Age the color: fade to dim over 2 minutes
 	age := time.Since(e.Timestamp)
 	typeColor = ageColor(typeColor, age, p.theme)

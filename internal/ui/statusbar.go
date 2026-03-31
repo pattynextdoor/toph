@@ -52,8 +52,9 @@ func (sb *StatusBar) RenderFilter(width int, filterText string, editing bool) st
 
 // Render draws the status bar at the given width. activeCount is the number
 // of currently active sessions, source is the data source label (e.g.
-// "~/.claude/projects"), and connected indicates whether the source is live.
-func (sb *StatusBar) Render(width int, activeCount int, source string, connected bool) string {
+// "~/.claude/projects"), connected indicates whether the source is live, and
+// conflictCount is the number of files currently touched by multiple sessions.
+func (sb *StatusBar) Render(width int, activeCount int, source string, connected bool, conflictCount int) string {
 	keyStyle := lipgloss.NewStyle().Bold(true).Foreground(sb.theme.BorderFocus)
 	descStyle := lipgloss.NewStyle().Foreground(sb.theme.TextDim)
 
@@ -72,11 +73,21 @@ func (sb *StatusBar) Render(width int, activeCount int, source string, connected
 	}
 	connStyle := lipgloss.NewStyle().Foreground(connColor)
 
-	right := fmt.Sprintf("%s  %s %s  %d active",
+	var conflictIndicator string
+	if conflictCount > 0 {
+		warnStyle := lipgloss.NewStyle().Bold(true).Foreground(sb.theme.Error)
+		conflictIndicator = warnStyle.Render(fmt.Sprintf("  %d conflict", conflictCount))
+		if conflictCount > 1 {
+			conflictIndicator = warnStyle.Render(fmt.Sprintf("  %d conflicts", conflictCount))
+		}
+	}
+
+	right := fmt.Sprintf("%s  %s %s  %d active%s",
 		descStyle.Render(source),
 		connStyle.Render(connIcon),
 		descStyle.Render("30fps"),
 		activeCount,
+		conflictIndicator,
 	)
 
 	gap := width - lipgloss.Width(left) - lipgloss.Width(right)

@@ -70,4 +70,6 @@ type Event struct {
 	OutputTokens             int
 	CacheCreationInputTokens int
 	CacheReadInputTokens     int
+
+	Conflicted bool // true if this file touch conflicts with another session
 }

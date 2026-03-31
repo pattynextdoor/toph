@@ -21,14 +21,16 @@ type Manager struct {
 	mu            sync.RWMutex
 	sessions      map[string]*Session
 	feed          *RingBuffer
+	conflicts     *ConflictTracker
 	sampleCounter int
 }
 
 // NewManager creates a Manager with an empty session map and a 1,000-event ring buffer.
 func NewManager() *Manager {
 	return &Manager{
-		sessions: make(map[string]*Session),
-		feed:     NewRingBuffer(ActivityBufferSize),
+		sessions:  make(map[string]*Session),
+		feed:      NewRingBuffer(ActivityBufferSize),
+		conflicts: NewConflictTracker(),
 	}
 }
 
@@ -45,6 +47,15 @@ func (m *Manager) HandleEvent(e Event) {
 	}
 
 	sess.UpdateFromEvent(e)
+
+	// Track file touches for conflict detection. When a file-touching tool
+	// (Read, Write, Edit) is used, record it. If another session already
+	// touched the same file within the conflict window, mark the event.
+	if e.Type == EventToolUse && e.ToolInput != "" && isFileTool(e.ToolName) {
+		if m.conflicts.RecordTouch(e.ToolInput, e.SessionID, e.Timestamp) {
+			e.Conflicted = true
+		}
+	}
 
 	// Only push high-signal events to the activity feed.
 	// Assistant text and system messages are too frequent and noisy.
@@ -216,6 +227,21 @@ func (m *Manager) SetSubagentMeta(sessionID, agentID, agentType, description str
 		StartedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	})
+}
+
+// ConflictCount returns the number of files currently in conflict
+// (touched by 2+ sessions within the conflict window).
+func (m *Manager) ConflictCount() int {
+	return m.conflicts.ConflictCount()
+}
+
+// isFileTool returns true for tools that touch files on disk.
+func isFileTool(name string) bool {
+	switch name {
+	case "Read", "Write", "Edit":
+		return true
+	}
+	return false
 }
 
 // ToolCounts aggregates tool usage counts across all sessions.
