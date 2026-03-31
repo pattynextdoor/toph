@@ -2,6 +2,7 @@ package model
 
 import (
 	"time"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -127,6 +128,34 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Filter mode: capture all input for the filter text field.
+	if m.filtering {
+		switch {
+		case isEsc(msg):
+			m.filtering = false
+			m.filterText = ""
+		case msg.String() == "enter":
+			m.filtering = false
+		case msg.String() == "backspace":
+			if len(m.filterText) > 0 {
+				_, size := utf8.DecodeLastRuneInString(m.filterText)
+				m.filterText = m.filterText[:len(m.filterText)-size]
+			}
+		default:
+			// Append printable characters (single rune, no control sequences).
+			if r := msg.String(); utf8.RuneCountInString(r) == 1 {
+				m.filterText += r
+			}
+		}
+		return m, nil
+	}
+
+	// Enter filter mode.
+	if isFilter(msg) {
+		m.filtering = true
+		return m, nil
+	}
+
 	if isQuit(msg) {
 		return m, tea.Quit
 	}
@@ -200,12 +229,16 @@ func (m Model) View() tea.View {
 	toolCounts := m.manager.ToolCounts()
 	activeSessions := m.manager.ActiveSessions(data.DefaultActiveThreshold)
 
+	// Apply filter to sessions and events when a filter is active.
+	displaySessions := filterSessions(allSessions, m.filterText)
+	displayEvents := filterEvents(feedEvents, m.filterText)
+
 	// Render panels.
 	m.activity.SetSessionCount(len(activeSessions))
-	sessionsView := m.sessions.Render(allSessions, l.LeftWidth, l.SessionsHeight)
-	selectedSession := m.sessions.SelectedSession(allSessions)
+	sessionsView := m.sessions.Render(displaySessions, l.LeftWidth, l.SessionsHeight)
+	selectedSession := m.sessions.SelectedSession(displaySessions)
 	detailView := m.detail.Render(selectedSession, l.LeftWidth, l.DetailHeight)
-	activityView := m.activity.Render(feedEvents, l.RightWidth, l.ActivityHeight)
+	activityView := m.activity.Render(displayEvents, l.RightWidth, l.ActivityHeight)
 	metricsView := m.metrics.Render(activeSessions, l.RightWidth, l.MetricsHeight)
 	toolsView := m.tools.Render(toolCounts, l.LeftWidth, l.ToolsHeight)
 
@@ -214,7 +247,12 @@ func (m Model) View() tea.View {
 	rightCol := lipgloss.JoinVertical(lipgloss.Left, activityView, metricsView)
 	mainView := lipgloss.JoinHorizontal(lipgloss.Top, leftCol, rightCol)
 
-	statusBar := m.statusBar.Render(m.width, len(activeSessions), "jsonl", true)
+	var statusBar string
+	if m.filtering || m.filterText != "" {
+		statusBar = m.statusBar.RenderFilter(m.width, m.filterText, m.filtering)
+	} else {
+		statusBar = m.statusBar.Render(m.width, len(activeSessions), "jsonl", true)
+	}
 
 	if m.help.Visible {
 		return tea.NewView(m.help.Render(m.width, m.height))

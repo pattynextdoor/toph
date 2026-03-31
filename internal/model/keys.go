@@ -43,6 +43,10 @@ func isEsc(msg tea.KeyPressMsg) bool {
 	return msg.String() == "escape"
 }
 
+func isFilter(msg tea.KeyPressMsg) bool {
+	return msg.String() == "/"
+}
+
 func isJumpToPanel(msg tea.KeyPressMsg) (int, bool) {
 	switch msg.String() {
 	case "1":
