@@ -92,14 +92,10 @@ func (p *MetricsPanel) Render(sessions []*data.Session, width, height int) strin
 	if _, ok := pricing[model]; !ok {
 		prefix = "~"
 	}
-	lines = append(lines, "")
-	lines = append(lines, fmt.Sprintf("cost %s%s",
+	lines = append(lines, fmt.Sprintf("cost %s%s  %s",
 		dimStyle.Render(prefix),
-		lipgloss.NewStyle().Foreground(p.theme.Active).Render(fmt.Sprintf("$%.2f", cost))))
-
-	// Active count
-	lines = append(lines, "")
-	lines = append(lines, dimStyle.Render(fmt.Sprintf("%d session(s)", len(sessions))))
+		lipgloss.NewStyle().Foreground(p.theme.Active).Render(fmt.Sprintf("$%.2f", cost)),
+		dimStyle.Render(fmt.Sprintf("%d session(s)", len(sessions)))))
 
 	if len(lines) > innerH {
 		lines = lines[:innerH]

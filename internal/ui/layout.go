@@ -49,17 +49,25 @@ func ComputeLayout(width, height int) Layout {
 
 	usableHeight := height - l.StatusBarHeight
 
-	// Left column: 35% width; right column: remainder.
-	l.LeftWidth = width * 35 / 100
+	if width >= 100 {
+		// Wide layout: more room for activity detail text
+		l.LeftWidth = width * 35 / 100
+		l.SessionsHeight = usableHeight * 40 / 100
+		l.ToolsHeight = usableHeight * 20 / 100
+		l.ActivityHeight = usableHeight * 70 / 100
+	} else {
+		// Compact layout: give left column more room for labels,
+		// steal from sessions (users monitor 3-5) to give tools
+		// enough rows to be useful, and give activity more of the
+		// right column since metrics content is small.
+		l.LeftWidth = width * 38 / 100
+		l.SessionsHeight = usableHeight * 34 / 100
+		l.ToolsHeight = usableHeight * 28 / 100
+		l.ActivityHeight = usableHeight * 76 / 100
+	}
+
 	l.RightWidth = width - l.LeftWidth
-
-	// Left stack: sessions 40%, tools 20%, detail fills the rest.
-	l.SessionsHeight = usableHeight * 40 / 100
-	l.ToolsHeight = usableHeight * 20 / 100
 	l.DetailHeight = usableHeight - l.SessionsHeight - l.ToolsHeight
-
-	// Right stack: activity feed 70%, metrics fills the rest.
-	l.ActivityHeight = usableHeight * 70 / 100
 	l.MetricsHeight = usableHeight - l.ActivityHeight
 
 	return l

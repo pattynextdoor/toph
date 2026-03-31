@@ -72,42 +72,39 @@ func (p *DetailPanel) Render(session *data.Session, width, height int) string {
 		statusColor = p.theme.Error
 	}
 	lines = append(lines, lipgloss.NewStyle().Foreground(statusColor).Render(statusIcon))
-	lines = append(lines, "")
 
 	// Working directory
 	cwd := session.CWD
 	if cwd != "" {
-		// Show just the last 2 path components for brevity
-		cwd = shortenPath(cwd, innerW-6)
-		lines = append(lines, dimStyle.Render("dir  ")+valStyle.Render(cwd))
+		cwd = shortenPath(cwd, innerW-5)
+		lines = append(lines, dimStyle.Render("dir ")+valStyle.Render(cwd))
 	}
 
 	// Git branch
 	if session.GitBranch != "" {
-		lines = append(lines, dimStyle.Render("git  ")+valStyle.Render(session.GitBranch))
+		lines = append(lines, dimStyle.Render("git ")+valStyle.Render(session.GitBranch))
 	}
 
-	// Model
+	// Model — shorten known claude- prefix when space is tight
 	if session.Model != "" {
-		lines = append(lines, dimStyle.Render("model")+lipgloss.NewStyle().Foreground(p.theme.Subagent).Render(" "+session.Model))
+		model := shortenModel(session.Model, innerW)
+		lines = append(lines, dimStyle.Render("mod ")+lipgloss.NewStyle().Foreground(p.theme.Subagent).Render(model))
 	}
 
-	// Duration
-	duration := time.Since(session.StartedAt)
-	lines = append(lines, dimStyle.Render("age  ")+dimStyle.Render(" "+formatDuration(duration)))
-
-	// Last tool
+	// Duration + last tool on one line when tight
+	age := formatDuration(time.Since(session.StartedAt))
 	if session.LastToolName != "" {
-		lines = append(lines, dimStyle.Render("last ")+lipgloss.NewStyle().Foreground(p.theme.ToolUse).Render(" "+session.LastToolName))
+		lines = append(lines, dimStyle.Render("age ")+dimStyle.Render(age)+
+			dimStyle.Render("  last ")+lipgloss.NewStyle().Foreground(p.theme.ToolUse).Render(session.LastToolName))
+	} else {
+		lines = append(lines, dimStyle.Render("age ")+dimStyle.Render(age))
 	}
-
-	lines = append(lines, "")
 
 	// Token summary
 	totalIn := session.TotalInputTokens
 	totalOut := session.TotalOutputTokens
 	if totalIn > 0 || totalOut > 0 {
-		lines = append(lines, dimStyle.Render(fmt.Sprintf("tokens %s in / %s out",
+		lines = append(lines, dimStyle.Render("tok ")+dimStyle.Render(fmt.Sprintf("%s in / %s out",
 			formatTokens(totalIn), formatTokens(totalOut))))
 	}
 
@@ -117,6 +114,14 @@ func (p *DetailPanel) Render(session *data.Session, width, height int) string {
 	}
 
 	return style.Width(width - 2).Height(height - 2).Render(strings.Join(lines, "\n"))
+}
+
+// shortenModel strips the "claude-" prefix from model names when space is tight.
+func shortenModel(model string, availWidth int) string {
+	if availWidth < 28 && strings.HasPrefix(model, "claude-") {
+		return model[7:] // "claude-opus-4-6" → "opus-4-6"
+	}
+	return model
 }
 
 // shortenPath trims a path to fit within maxLen by showing the last components.

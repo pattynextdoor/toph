@@ -64,21 +64,28 @@ func (p *ToolsPanel) Render(toolCounts map[string]int, width, height int) string
 
 	maxCount := entries[0].count
 
-	// Compute label width from the widest entry so bars align.
-	labelWidth := 0
+	// Find the longest tool name (capped at 8 chars to save space).
+	maxNameLen := 0
 	for _, e := range entries {
-		l := len(fmt.Sprintf("%-6s %3d ", e.name, e.count))
-		if l > labelWidth {
-			labelWidth = l
+		n := len(e.name)
+		if n > maxNameLen {
+			maxNameLen = n
 		}
 	}
+	if maxNameLen > 8 {
+		maxNameLen = 8
+	}
 
-	barWidth := innerW - labelWidth - 1
-	if barWidth < 5 {
-		barWidth = 5
+	// label = "Name  N " — dynamic name width + count
+	labelWidth := maxNameLen + 1 + 3 + 1 // name + space + count(3) + space
+
+	barWidth := innerW - labelWidth
+	if barWidth < 3 {
+		barWidth = 3
 	}
 
 	maxRows := innerH - 1
+	nameFmt := fmt.Sprintf("%%-%ds", maxNameLen)
 	for i, e := range entries {
 		if i >= maxRows {
 			break
@@ -88,7 +95,11 @@ func (p *ToolsPanel) Render(toolCounts map[string]int, width, height int) string
 			barLen = 1
 		}
 		bar := strings.Repeat("█", barLen)
-		label := fmt.Sprintf("%-6s %3d ", e.name, e.count)
+		name := e.name
+		if len(name) > maxNameLen {
+			name = name[:maxNameLen]
+		}
+		label := fmt.Sprintf(nameFmt+" %3d ", name, e.count)
 		lines = append(lines, label+lipgloss.NewStyle().Foreground(p.theme.ToolUse).Render(bar))
 	}
 
