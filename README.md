@@ -4,6 +4,8 @@ btop for AI agents. A terminal dashboard that monitors AI coding agent activity 
 
 Named after [Toph Beifong](https://avatar.fandom.com/wiki/Toph_Beifong) — she sees everything through vibrations. toph sees your agents through vibrations in the filesystem.
 
+![toph demo](docs/demo.gif)
+
 ## What it does
 
 toph watches your Claude Code sessions and shows you everything in a single terminal dashboard:
