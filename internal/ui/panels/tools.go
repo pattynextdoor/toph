@@ -86,6 +86,7 @@ func (p *ToolsPanel) Render(toolCounts map[string]int, width, height int) string
 
 	maxRows := innerH - 1
 	nameFmt := fmt.Sprintf("%%-%ds", maxNameLen)
+	barStyle := lipgloss.NewStyle().Foreground(p.theme.ToolUse)
 	for i, e := range entries {
 		if i >= maxRows {
 			break
@@ -95,8 +96,9 @@ func (p *ToolsPanel) Render(toolCounts map[string]int, width, height int) string
 			name = name[:maxNameLen]
 		}
 		label := fmt.Sprintf(nameFmt+" %3d ", name, e.count)
-		// Clamp bar to remaining space after the label
-		remaining := innerW - len(label)
+		// Measure actual rendered label width and clamp bar accordingly
+		labelW := lipgloss.Width(label)
+		remaining := innerW - labelW
 		if remaining < 1 {
 			lines = append(lines, label)
 			continue
@@ -108,8 +110,13 @@ func (p *ToolsPanel) Render(toolCounts map[string]int, width, height int) string
 		if barLen > remaining {
 			barLen = remaining
 		}
-		bar := strings.Repeat("█", barLen)
-		lines = append(lines, label+lipgloss.NewStyle().Foreground(p.theme.ToolUse).Render(bar))
+		bar := barStyle.Render(strings.Repeat("▇", barLen))
+		// Final safety: if the full line is still too wide, trim the bar
+		for lipgloss.Width(label+bar) > innerW && barLen > 1 {
+			barLen--
+			bar = barStyle.Render(strings.Repeat("▇", barLen))
+		}
+		lines = append(lines, label+bar)
 	}
 
 	return style.Width(width - 2).Height(height - 2).MaxWidth(width).MaxHeight(height).Render(strings.Join(lines, "\n"))
