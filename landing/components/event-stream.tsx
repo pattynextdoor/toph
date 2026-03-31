@@ -264,7 +264,7 @@ export function EventStream() {
       </div>
 
       <div className="max-w-6xl mx-auto px-6 lg:px-16">
-        <div className="relative">
+        <div className="relative" data-bridge-container>
           {/* Three.js particle bridge overlay */}
           <div className="hidden lg:block">
             <ParticleBridge events={events.map((e) => ({ tool: e.tool, id: e.id }))} />

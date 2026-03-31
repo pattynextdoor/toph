@@ -64,9 +64,9 @@ export function ParticleBridge({ events }: { events: { tool: string; id: number 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // The canvas is inside a wrapper div; we need the relative parent that contains both
-    // the canvas wrapper and the content with data-source/data-panel attributes
-    const containerEl = canvas.parentElement?.parentElement;
+    // Canvas is inside: <div class="absolute..."> inside <div class="hidden lg:block"> inside <div class="relative">
+    // We need the "relative" div which contains both the canvas wrapper and the data-panel/data-source elements
+    const containerEl = canvas.closest("[data-bridge-container]") || canvas.parentElement?.parentElement?.parentElement;
     if (!containerEl) return;
 
     const computePositions = () => {
@@ -112,8 +112,11 @@ export function ParticleBridge({ events }: { events: { tool: string; id: number 
 
     resizeCanvas();
     window.addEventListener("resize", resizeCanvas);
-    // Recompute after layout settles
-    const recomputeTimer = setTimeout(computePositions, 500);
+    // Recompute after layout settles (content might not be rendered yet)
+    const recomputeTimer = setTimeout(() => {
+      resizeCanvas();
+      computePositions();
+    }, 300);
 
     const animate = () => {
       const w = canvas.width / window.devicePixelRatio;
