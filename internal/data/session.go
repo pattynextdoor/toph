@@ -16,6 +16,25 @@ const (
 	StatusDead
 )
 
+// StatusPriority returns a sort weight for the status. Lower values sort first,
+// so waiting sessions (needing human attention) float to the top.
+func (s SessionStatus) StatusPriority() int {
+	switch s {
+	case StatusWaiting:
+		return 0
+	case StatusActive:
+		return 1
+	case StatusError:
+		return 2
+	case StatusIdle:
+		return 3
+	case StatusDead:
+		return 4
+	default:
+		return 5
+	}
+}
+
 func (s SessionStatus) String() string {
 	switch s {
 	case StatusActive:
@@ -77,6 +96,12 @@ func (s *Session) RLock() { s.mu.RLock() }
 
 // RUnlock releases the read lock.
 func (s *Session) RUnlock() { s.mu.RUnlock() }
+
+// ContextWindowSize returns the context window token limit for the given model.
+// All current Claude models use 200K tokens.
+func ContextWindowSize(model string) int {
+	return 200_000
+}
 
 // NewSession creates a Session with sensible defaults.
 func NewSession(id, project string) *Session {

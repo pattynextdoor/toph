@@ -52,7 +52,9 @@ func (m *Manager) HandleEvent(e Event) {
 	}
 }
 
-// Sessions returns all known sessions sorted by most recently updated first.
+// Sessions returns all known sessions sorted by actionability: waiting first,
+// then active, then idle/error/dead. Within each group, most recently updated
+// sessions come first.
 func (m *Manager) Sessions() []*Session {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -61,14 +63,12 @@ func (m *Manager) Sessions() []*Session {
 	for _, s := range m.sessions {
 		result = append(result, s)
 	}
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].UpdatedAt.After(result[j].UpdatedAt)
-	})
+	sortSessionsByActionability(result)
 	return result
 }
 
 // ActiveSessions returns sessions whose UpdatedAt is within the given threshold
-// of the current time, sorted by most recently updated first.
+// of the current time, sorted by actionability (same as Sessions).
 func (m *Manager) ActiveSessions(threshold time.Duration) []*Session {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -80,9 +80,7 @@ func (m *Manager) ActiveSessions(threshold time.Duration) []*Session {
 			result = append(result, s)
 		}
 	}
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].UpdatedAt.After(result[j].UpdatedAt)
-	})
+	sortSessionsByActionability(result)
 	return result
 }
 
@@ -118,6 +116,28 @@ func isActivityFeedEvent(e Event) bool {
 	default:
 		return true
 	}
+}
+
+// sortSessionsByActionability sorts sessions so that the most actionable ones
+// appear first: waiting (needs human input) → active → error → idle → dead.
+// Within each priority group, most recently updated sessions come first.
+func sortSessionsByActionability(sessions []*Session) {
+	sort.Slice(sessions, func(i, j int) bool {
+		sessions[i].mu.RLock()
+		pi := sessions[i].Status.StatusPriority()
+		ti := sessions[i].UpdatedAt
+		sessions[i].mu.RUnlock()
+
+		sessions[j].mu.RLock()
+		pj := sessions[j].Status.StatusPriority()
+		tj := sessions[j].UpdatedAt
+		sessions[j].mu.RUnlock()
+
+		if pi != pj {
+			return pi < pj
+		}
+		return ti.After(tj)
+	})
 }
 
 // ToolCounts aggregates tool usage counts across all sessions.

@@ -90,6 +90,86 @@ func TestManager_ActivityFeedFiltering(t *testing.T) {
 	}
 }
 
+func TestManager_SessionSortOrder(t *testing.T) {
+	m := NewManager()
+	now := time.Now()
+
+	// Create sessions with different statuses by sending events and then
+	// manually setting the status (since there's no direct "waiting" event type).
+	events := []struct {
+		id     string
+		offset time.Duration
+	}{
+		{"idle-old", -10 * time.Minute},
+		{"active-recent", -1 * time.Minute},
+		{"waiting-old", -5 * time.Minute},
+		{"dead-recent", -2 * time.Minute},
+		{"active-old", -8 * time.Minute},
+		{"waiting-recent", -30 * time.Second},
+		{"error-recent", -3 * time.Minute},
+	}
+
+	for _, e := range events {
+		m.HandleEvent(Event{
+			Type:      EventToolUse,
+			Timestamp: now.Add(e.offset),
+			SessionID: e.id,
+			ToolName:  "Bash",
+		})
+	}
+
+	// Manually set statuses (sessions start as Active from EventToolUse).
+	m.sessions["idle-old"].mu.Lock()
+	m.sessions["idle-old"].Status = StatusIdle
+	m.sessions["idle-old"].mu.Unlock()
+
+	m.sessions["waiting-old"].mu.Lock()
+	m.sessions["waiting-old"].Status = StatusWaiting
+	m.sessions["waiting-old"].mu.Unlock()
+
+	m.sessions["waiting-recent"].mu.Lock()
+	m.sessions["waiting-recent"].Status = StatusWaiting
+	m.sessions["waiting-recent"].mu.Unlock()
+
+	m.sessions["dead-recent"].mu.Lock()
+	m.sessions["dead-recent"].Status = StatusDead
+	m.sessions["dead-recent"].mu.Unlock()
+
+	m.sessions["error-recent"].mu.Lock()
+	m.sessions["error-recent"].Status = StatusError
+	m.sessions["error-recent"].mu.Unlock()
+
+	sessions := m.Sessions()
+
+	// Expected order:
+	// 1. waiting-recent  (priority 0, most recent)
+	// 2. waiting-old     (priority 0, older)
+	// 3. active-recent   (priority 1, most recent)
+	// 4. active-old      (priority 1, older)
+	// 5. error-recent    (priority 2)
+	// 6. idle-old        (priority 3)
+	// 7. dead-recent     (priority 4)
+	expected := []string{
+		"waiting-recent",
+		"waiting-old",
+		"active-recent",
+		"active-old",
+		"error-recent",
+		"idle-old",
+		"dead-recent",
+	}
+
+	if len(sessions) != len(expected) {
+		t.Fatalf("expected %d sessions, got %d", len(expected), len(sessions))
+	}
+
+	for i, want := range expected {
+		if sessions[i].ID != want {
+			t.Errorf("position %d: expected %s, got %s", i, want, sessions[i].ID)
+		}
+	}
+}
+
 func TestManager_ToolCounts(t *testing.T) {
 	m := NewManager()
 	m.HandleEvent(Event{Type: EventToolUse, Timestamp: time.Now(), SessionID: "s1", ToolName: "Bash"})
